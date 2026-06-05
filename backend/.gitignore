@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+*.pt
+*.onnx
+*.wav
+logs/
+snapshots/
+.venv/
+venv/
+gcp-credentials.json
+*.gcp-credentials.json
+
+# YOLO 학습 산출물
+Chemistry-Lab-Object-Detection-1/
+chemistry_lab_data/
+seven_segment_data/
+datasets/
+runs/
+frames/

@@ -1,0 +1,167 @@
+/* ── 구겨진 종이 배경 ─────────────────────────────────────────── */
+.paperBg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  background-color: #eeeae2;
+  background-image:
+    /* 주름선 1 – 좌상→우하 대각 */
+    linear-gradient(
+      42deg,
+      transparent 26%, rgba(0,0,0,0.055) 31%,
+      rgba(255,255,255,0.72) 33.5%, rgba(0,0,0,0.04) 36%,
+      transparent 42%
+    ),
+    /* 주름선 2 – 우상→좌하 */
+    linear-gradient(
+      -55deg,
+      transparent 14%, rgba(0,0,0,0.05) 20%,
+      rgba(255,255,255,0.65) 22.5%, rgba(0,0,0,0.038) 25%,
+      transparent 31%
+    ),
+    /* 주름선 3 – 완만한 대각 */
+    linear-gradient(
+      118deg,
+      transparent 40%, rgba(0,0,0,0.042) 46%,
+      rgba(255,255,255,0.58) 48.5%, rgba(0,0,0,0.032) 51%,
+      transparent 57%
+    ),
+    /* 주름선 4 – 얕은 각도 */
+    linear-gradient(
+      -18deg,
+      transparent 56%, rgba(0,0,0,0.038) 61%,
+      rgba(255,255,255,0.52) 63.5%, rgba(0,0,0,0.028) 66%,
+      transparent 72%
+    ),
+    /* 주름선 5 – 상단 수평에 가까운 선 */
+    linear-gradient(
+      162deg,
+      transparent 18%, rgba(0,0,0,0.032) 24%,
+      rgba(255,255,255,0.48) 26.5%, rgba(0,0,0,0.025) 29%,
+      transparent 35%
+    ),
+    /* 주름선 6 – 보조 짧은 선 */
+    linear-gradient(
+      78deg,
+      transparent 60%, rgba(0,0,0,0.03) 65%,
+      rgba(255,255,255,0.42) 67%, rgba(0,0,0,0.022) 69%,
+      transparent 74%
+    ),
+    /* 넓은 그림자 영역 (베이지/황갈색) */
+    radial-gradient(ellipse 85% 60% at 72% 28%, rgba(195,182,158,0.38) 0%, transparent 58%),
+    radial-gradient(ellipse 70% 55% at 22% 72%, rgba(190,178,152,0.32) 0%, transparent 52%),
+    radial-gradient(ellipse 55% 50% at 50% 52%, rgba(0,0,0,0.022) 0%, transparent 62%),
+    radial-gradient(ellipse 45% 38% at 38% 85%, rgba(185,173,148,0.28) 0%, transparent 48%),
+    /* 밝은 하이라이트 영역 */
+    radial-gradient(ellipse 65% 55% at 12% 12%, rgba(255,255,255,0.82) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 45% at 82% 82%, rgba(255,255,255,0.68) 0%, transparent 45%),
+    radial-gradient(ellipse 42% 38% at 50% 18%, rgba(255,255,255,0.60) 0%, transparent 42%);
+}
+
+/* 종이 섬유 노이즈 질감 */
+.paperBg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.32;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='5' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 190px 190px;
+}
+
+/* 미세 방향성 섬유 결 */
+.paperBg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.10;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.018 0.45' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+  background-size: 320px 320px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+  flex: 1;
+  justify-content: center;
+  padding: 0 0.15rem 0.5rem;
+}
+
+.btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--lab-white);
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  border-radius: 1.65rem;
+  box-shadow: 0 6px 20px rgba(59, 66, 110, 0.24);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btnTall {
+  min-height: 9.25rem;
+  gap: 0.85rem;
+  padding: 1.5rem 1.15rem;
+}
+
+.btnShort {
+  min-height: 4.05rem;
+  padding: 1rem 1.15rem;
+  position: relative;
+}
+
+.btnNavy {
+  background: var(--lab-navy);
+}
+
+.btnLavender {
+  background: var(--lab-lavender);
+  box-shadow: 0 6px 20px rgba(142, 148, 193, 0.38);
+}
+
+.heroIcon {
+  width: 3.85rem;
+  height: 3.85rem;
+  color: var(--lab-white);
+  flex-shrink: 0;
+  shape-rendering: geometricPrecision;
+}
+
+/* 라벤더 동영상 촬영 박스 배경(#8e94c1)과 톤 맞춘 쿨 화이트 */
+.heroIconCamera {
+  color: color-mix(in srgb, var(--lab-white) 94%, var(--lab-lavender));
+}
+
+.badge {
+  position: absolute;
+  top: -0.35rem;
+  right: 0.55rem;
+  min-width: 1.55rem;
+  height: 1.55rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--lab-badge);
+  color: var(--lab-white);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.55rem;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+}

@@ -1,0 +1,152 @@
+/* ─── outer shell ─── */
+.shell {
+  position: relative;
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 28rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  border-left: 4px solid var(--lab-side);
+  border-right: 4px solid var(--lab-side);
+  overflow: hidden;
+}
+
+/* ─── white navigation header ─── */
+.header {
+  display: flex;
+  align-items: center;
+  padding: 0.9rem 1.25rem;
+  background: #ffffff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  position: relative;
+  z-index: 10;
+}
+
+.back {
+  font-size: 1.7rem;
+  line-height: 1;
+  color: #555;
+  text-decoration: none;
+  width: 2rem;
+  flex-shrink: 0;
+}
+
+.title {
+  flex: 1;
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  color: #111;
+  padding-right: 2rem; /* offset back button for true visual centering */
+}
+
+/* ─── gray crumpled-paper content area ─── */
+.content {
+  flex: 1;
+  position: relative;
+  padding: 1.75rem 1rem 2rem;
+  background-color: #a8a5a0;
+  background-image:
+    linear-gradient(52deg, transparent 44%, rgba(255, 255, 255, 0.35) 49.5%, rgba(255, 255, 255, 0.12) 51%, transparent 56%),
+    linear-gradient(-18deg, transparent 58%, rgba(255, 255, 255, 0.22) 62%, transparent 68%),
+    linear-gradient(118deg, transparent 36%, rgba(0, 0, 0, 0.04) 47%, rgba(0, 0, 0, 0.02) 51%, transparent 61%);
+}
+
+/* noise fiber texture overlay */
+.content::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+/* ─── card list ─── */
+.list {
+  position: relative;
+  z-index: 1;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.cardWrap {
+  position: relative;
+}
+
+/* paperclip: overlaps top-right of card */
+.clip {
+  position: absolute;
+  right: 14px;
+  top: -18px;
+  width: 26px;
+  height: 60px;
+  z-index: 3;
+  transform: rotate(5deg);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+
+/* white card with bottom-right corner folded */
+.card {
+  position: relative;
+  z-index: 1;
+  background: #ffffff;
+  padding: 1.4rem 1.5rem;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 32px), calc(100% - 32px) 100%, 0 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/*
+  Fold shadow: sits in the 32×32 bottom-right corner.
+  linear-gradient(135deg) splits along the "/" diagonal:
+    upper-left triangle → transparent (card content shows through)
+    lower-right triangle → dark shadow (exposed folded corner)
+*/
+.fold {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 32px;
+  height: 32px;
+  z-index: 2;
+  background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.18) 50%);
+}
+
+.cardTitle {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #111;
+}
+
+.cardStatus {
+  font-size: 1rem;
+  color: #222;
+}
+
+/* ─── chevron "more" indicator ─── */
+.chevronRow {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  padding-top: 1rem;
+}
+
+.chevron {
+  width: 32px;
+  height: 32px;
+}

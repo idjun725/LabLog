@@ -1,0 +1,34 @@
+:root {
+  --lab-navy: #3b426e;
+  --lab-lavender: #8e94c1;
+  --lab-white: #ffffff;
+  --lab-badge: #e53935;
+  --lab-side: #c5d9eb;
+  --lab-paper-base: #faf9f6;
+  --lab-paper-mid: #f3f2ef;
+  --lab-text-logo: #2a3158;
+  --lab-font: 'Noto Sans KR', 'Apple SD Gothic Neo', system-ui, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: var(--lab-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100dvh;
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+}

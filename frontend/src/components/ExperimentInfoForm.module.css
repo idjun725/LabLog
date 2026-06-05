@@ -1,0 +1,101 @@
+.wrap {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid #d5d7e3;
+  border-radius: 1rem;
+  padding: 0.8rem 1rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--lab-navy, #2c3553);
+  margin: 0;
+}
+
+.toggle {
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--lab-navy, #2c3553);
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+}
+
+.subtitle {
+  margin: 0.2rem 0 0.7rem;
+  font-size: 0.75rem;
+  color: #5a5f7a;
+}
+
+.fields {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--lab-navy, #2c3553);
+}
+
+.input,
+.textarea {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #d5d7e3;
+  border-radius: 0.55rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: #1f2937;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.textarea {
+  min-height: 3.2rem;
+  resize: vertical;
+}
+
+.input:focus,
+.textarea:focus {
+  outline: none;
+  border-color: var(--lab-lavender, #8e94c1);
+  box-shadow: 0 0 0 3px rgba(142, 148, 193, 0.18);
+}
+
+.clearRow {
+  margin-top: 0.5rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.clearBtn {
+  background: none;
+  border: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #888fa0;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+}
+
+.clearBtn:hover {
+  color: var(--lab-navy, #2c3553);
+}

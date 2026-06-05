@@ -1,0 +1,111 @@
+.shell {
+  position: relative;
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 28rem;
+  margin: 0 auto;
+  border-left: 4px solid var(--lab-side);
+  border-right: 4px solid var(--lab-side);
+  background-color: #f7f6f3;
+  /* 대각 주름 + 광택 + 밝은 종이 바탕 */
+  background-image:
+    linear-gradient(
+      52deg,
+      transparent 44%,
+      rgba(255, 255, 255, 0.72) 49.5%,
+      rgba(255, 255, 255, 0.38) 51%,
+      transparent 56%
+    ),
+    linear-gradient(
+      118deg,
+      transparent 36%,
+      rgba(0, 0, 0, 0.038) 47%,
+      rgba(0, 0, 0, 0.022) 51%,
+      transparent 61%
+    ),
+    linear-gradient(
+      -18deg,
+      transparent 58%,
+      rgba(255, 255, 255, 0.55) 62%,
+      transparent 68%
+    ),
+    linear-gradient(
+      168deg,
+      transparent 22%,
+      rgba(0, 0, 0, 0.028) 35%,
+      rgba(0, 0, 0, 0.015) 42%,
+      transparent 52%
+    ),
+    radial-gradient(ellipse 95% 55% at 18% 12%, rgba(255, 255, 255, 0.92) 0%, transparent 48%),
+    radial-gradient(ellipse 70% 50% at 82% 88%, rgba(255, 255, 255, 0.6) 0%, transparent 42%),
+    radial-gradient(ellipse 55% 40% at 48% 48%, rgba(0, 0, 0, 0.022) 0%, transparent 58%),
+    linear-gradient(168deg, var(--lab-paper-base) 0%, var(--lab-paper-mid) 42%, #ebe8e3 100%);
+  box-shadow:
+    inset 0 0 100px rgba(255, 255, 255, 0.45),
+    0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+/* 미세 섬유·구김 질감 */
+.shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.14;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+/* 큰 주름 한두 줄 (대각 접힌 선) */
+.shell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(
+      142deg,
+      transparent 0%,
+      transparent 41%,
+      rgba(0, 0, 0, 0.035) 49.2%,
+      rgba(255, 255, 255, 0.45) 50.1%,
+      rgba(0, 0, 0, 0.028) 51%,
+      transparent 58%
+    ),
+    linear-gradient(
+      -35deg,
+      transparent 52%,
+      rgba(0, 0, 0, 0.022) 58%,
+      rgba(255, 255, 255, 0.35) 59.5%,
+      transparent 66%
+    );
+}
+
+.shellHome {
+  padding: 0;
+}
+
+.shellPage {
+  padding: 0;
+}
+
+.inner {
+  position: relative;
+  z-index: 1;
+  min-height: 100dvh;
+  padding: env(safe-area-inset-top, 0) 1.25rem env(safe-area-inset-bottom, 0);
+}
+
+.shellHome .inner {
+  display: flex;
+  flex-direction: column;
+  padding-top: max(1.75rem, env(safe-area-inset-top, 0px) + 0.5rem);
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+}
+
+.shellPage .inner {
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+}

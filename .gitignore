@@ -1,0 +1,33 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code 사용자별 로컬 설정 (권한, history 등)
+.claude/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Defensive duplicates of subfolder .gitignore entries
+# (subfolder .gitignore files are authoritative; these are belt-and-suspenders)
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pt
+*.onnx
+*.wav
+gcp-credentials.json
+
+# YOLO 학습 산출물 — Roboflow 데이터셋(수백 MB), ultralytics 학습 로그/체크포인트
+backend/Chemistry-Lab-Object-Detection-1/
+backend/chemistry_lab_data/
+backend/seven_segment_data/
+backend/datasets/
+backend/runs/
+backend/frames/

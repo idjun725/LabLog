@@ -1,0 +1,41 @@
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-bottom: 2.25rem;
+}
+
+.wordmark {
+  font-family: 'Poppins', 'Noto Sans KR', sans-serif;
+  font-size: 2.85rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: var(--lab-text-logo);
+}
+
+.wordmarkBold {
+  font-weight: 700;
+}
+
+.iconWrap {
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.icon {
+  width: 3.85rem;
+  height: 3.85rem;
+  display: block;
+  filter: hue-rotate(-12deg) saturate(0.76) drop-shadow(0 1px 2px rgba(42, 49, 88, 0.14));
+}
+
+/* 메인 화면 확대 레이아웃용 */
+.hero .wordmark {
+  font-size: 3.45rem;
+}
+
+.hero .icon {
+  width: 3.6rem;
+  height: 3.6rem;
+}

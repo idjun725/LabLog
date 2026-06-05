@@ -1,0 +1,73 @@
+[
+  {
+    "experiment": "산염기 중화반응",
+    "records": [
+      {"timestamp": "00:00:01", "yolo": {"Beaker": 0.9, "Pipette": 0.8}, "ocr": "100ml", "ocr_confidence": 0.85, "speech": "NaOH 수용액 100ml를 준비합니다"},
+      {"timestamp": "00:00:15", "yolo": {"Beaker": 0.85, "Measuring_Cylinder": 0.75}, "ocr": "", "ocr_confidence": 0.0, "speech": "비커에 옮겨 담습니다"},
+      {"timestamp": "00:00:40", "yolo": {"Precision_Weight_Scale": 0.9, "Beaker": 0.7}, "ocr": "4.0g", "ocr_confidence": 0.88, "speech": "NaOH 4그램을 측량했습니다"},
+      {"timestamp": "00:01:10", "yolo": {"Precision_Weight_Scale": 0.85}, "ocr": "4.0g", "ocr_confidence": 0.9, "speech": ""},
+      {"timestamp": "00:01:50", "yolo": {"Beaker": 0.9, "dropper": 0.8}, "ocr": "", "ocr_confidence": 0.0, "speech": "HCl 용액을 한 방울씩 떨어뜨립니다"},
+      {"timestamp": "00:02:20", "yolo": {"Beaker": 0.85, "thermometer": 0.7}, "ocr": "25°C", "ocr_confidence": 0.7, "speech": "온도가 올라가고 있습니다"},
+      {"timestamp": "00:03:00", "yolo": {"Beaker": 0.9}, "ocr": "pH 7.4", "ocr_confidence": 0.72, "speech": "지시약 색이 변했습니다"},
+      {"timestamp": "00:03:40", "yolo": {"Beaker": 0.85}, "ocr": "pH 7.0", "ocr_confidence": 0.78, "speech": "중화점에 도달했습니다"},
+      {"timestamp": "00:04:30", "yolo": {"Beaker": 0.8}, "ocr": "", "ocr_confidence": 0.0, "speech": "기구를 정리합니다"},
+      {"timestamp": "00:05:00", "yolo": {}, "ocr": "", "ocr_confidence": 0.0, "speech": "실험 종료"}
+    ],
+    "labels": ["준비", "준비", "측정 및 관찰", "측정 및 관찰", "반응", "반응", "측정 및 관찰", "측정 및 관찰", "정리", "정리"]
+  },
+  {
+    "experiment": "효모 발효 속도",
+    "records": [
+      {"timestamp": "00:00:00", "yolo": {"Beaker": 0.85, "Glass_Rod": 0.7}, "ocr": "", "ocr_confidence": 0.0, "speech": "설탕 용액을 만듭니다"},
+      {"timestamp": "00:00:25", "yolo": {"Precision_Weight_Scale": 0.9, "Reagent_Bottle": 0.7}, "ocr": "10g", "ocr_confidence": 0.88, "speech": "효모 10그램을 측정합니다"},
+      {"timestamp": "00:01:00", "yolo": {"Precision_Weight_Scale": 0.85}, "ocr": "10g", "ocr_confidence": 0.9, "speech": "측정 완료"},
+      {"timestamp": "00:01:40", "yolo": {"Beaker": 0.9, "thermometer": 0.85}, "ocr": "35°C", "ocr_confidence": 0.8, "speech": "수조에 넣고 35도를 유지합니다"},
+      {"timestamp": "00:03:00", "yolo": {"Beaker": 0.85, "Test_Tube": 0.8}, "ocr": "", "ocr_confidence": 0.0, "speech": "이산화탄소가 발생합니다"},
+      {"timestamp": "00:05:00", "yolo": {"Beaker": 0.85, "Measuring_Cylinder": 0.75}, "ocr": "12ml", "ocr_confidence": 0.78, "speech": "10분간 12ml 발생"},
+      {"timestamp": "00:07:00", "yolo": {"Measuring_Cylinder": 0.8}, "ocr": "28ml", "ocr_confidence": 0.8, "speech": "발생량을 기록합니다"},
+      {"timestamp": "00:08:00", "yolo": {}, "ocr": "", "ocr_confidence": 0.0, "speech": "기구를 세척합니다"}
+    ],
+    "labels": ["준비", "측정 및 관찰", "측정 및 관찰", "반응", "반응", "측정 및 관찰", "측정 및 관찰", "정리"]
+  },
+  {
+    "experiment": "물의 전기분해",
+    "records": [
+      {"timestamp": "00:00:00", "yolo": {"Beaker": 0.9, "Reagent_Bottle": 0.7}, "ocr": "", "ocr_confidence": 0.0, "speech": "전해질 수용액을 준비합니다"},
+      {"timestamp": "00:00:30", "yolo": {"Beaker": 0.85, "Test_Tube": 0.85}, "ocr": "", "ocr_confidence": 0.0, "speech": "전극을 설치합니다"},
+      {"timestamp": "00:01:15", "yolo": {"Beaker": 0.85}, "ocr": "3V", "ocr_confidence": 0.7, "speech": "3볼트 전압을 인가합니다"},
+      {"timestamp": "00:01:50", "yolo": {"Beaker": 0.85, "Test_Tube": 0.85}, "ocr": "", "ocr_confidence": 0.0, "speech": "기포가 발생하기 시작합니다"},
+      {"timestamp": "00:03:00", "yolo": {"Test_Tube": 0.85, "Measuring_Cylinder": 0.8}, "ocr": "5ml", "ocr_confidence": 0.78, "speech": "1분간 수소 5ml 발생"},
+      {"timestamp": "00:05:00", "yolo": {"Test_Tube": 0.8}, "ocr": "12ml", "ocr_confidence": 0.8, "speech": "발생량을 측정 중입니다"},
+      {"timestamp": "00:07:00", "yolo": {}, "ocr": "", "ocr_confidence": 0.0, "speech": "전원을 끄고 정리합니다"}
+    ],
+    "labels": ["준비", "준비", "측정 및 관찰", "반응", "측정 및 관찰", "측정 및 관찰", "정리"]
+  },
+  {
+    "experiment": "금속의 이온화 경향",
+    "records": [
+      {"timestamp": "00:00:00", "yolo": {"Beaker": 0.9, "Reagent_Bottle": 0.8}, "ocr": "", "ocr_confidence": 0.0, "speech": "황산구리 수용액을 준비합니다"},
+      {"timestamp": "00:00:30", "yolo": {"Beaker": 0.85, "Test_Tube": 0.8}, "ocr": "100ml", "ocr_confidence": 0.85, "speech": "비커에 100ml를 따릅니다"},
+      {"timestamp": "00:01:00", "yolo": {"Precision_Weight_Scale": 0.85}, "ocr": "2.0g", "ocr_confidence": 0.88, "speech": "아연 조각 2그램을 측정합니다"},
+      {"timestamp": "00:01:30", "yolo": {"Beaker": 0.85, "dropper": 0.7}, "ocr": "", "ocr_confidence": 0.0, "speech": "아연을 수용액에 담급니다"},
+      {"timestamp": "00:02:30", "yolo": {"Beaker": 0.85, "thermometer": 0.6}, "ocr": "", "ocr_confidence": 0.0, "speech": "구리가 석출되고 있습니다"},
+      {"timestamp": "00:04:00", "yolo": {"Beaker": 0.85}, "ocr": "", "ocr_confidence": 0.0, "speech": "색 변화를 관찰합니다"},
+      {"timestamp": "00:05:00", "yolo": {"Beaker": 0.8}, "ocr": "", "ocr_confidence": 0.0, "speech": "이온화 경향 순서를 정리합니다"},
+      {"timestamp": "00:06:00", "yolo": {}, "ocr": "", "ocr_confidence": 0.0, "speech": "폐액 처리"}
+    ],
+    "labels": ["준비", "준비", "측정 및 관찰", "반응", "반응", "측정 및 관찰", "측정 및 관찰", "정리"]
+  },
+  {
+    "experiment": "광합성과 빛의 파장",
+    "records": [
+      {"timestamp": "00:00:00", "yolo": {"Beaker": 0.85, "Test_Tube": 0.8}, "ocr": "", "ocr_confidence": 0.0, "speech": "수초를 준비합니다"},
+      {"timestamp": "00:00:30", "yolo": {"Beaker": 0.85}, "ocr": "", "ocr_confidence": 0.0, "speech": "청색 필터를 설치합니다"},
+      {"timestamp": "00:01:00", "yolo": {"Beaker": 0.85, "thermometer": 0.65}, "ocr": "20°C", "ocr_confidence": 0.75, "speech": "온도를 20도로 유지합니다"},
+      {"timestamp": "00:01:30", "yolo": {"Beaker": 0.85}, "ocr": "", "ocr_confidence": 0.0, "speech": "빛을 조사하기 시작합니다"},
+      {"timestamp": "00:03:00", "yolo": {"Beaker": 0.85}, "ocr": "", "ocr_confidence": 0.0, "speech": "산소 기포가 발생합니다"},
+      {"timestamp": "00:05:00", "yolo": {"Measuring_Cylinder": 0.75}, "ocr": "8ml", "ocr_confidence": 0.78, "speech": "5분간 산소 8ml 발생"},
+      {"timestamp": "00:07:00", "yolo": {"Measuring_Cylinder": 0.7}, "ocr": "15ml", "ocr_confidence": 0.8, "speech": "발생량 기록"},
+      {"timestamp": "00:09:00", "yolo": {}, "ocr": "", "ocr_confidence": 0.0, "speech": "정리하고 다음 파장으로 진행"}
+    ],
+    "labels": ["준비", "준비", "측정 및 관찰", "반응", "반응", "측정 및 관찰", "측정 및 관찰", "정리"]
+  }
+]
