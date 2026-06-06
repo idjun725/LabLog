@@ -91,6 +91,17 @@ def _require_analyzer() -> LabLogAnalyzer:
     return ANALYZER
 
 
+@app.get("/")
+def root():
+    """HF Spaces 인프라가 GET /로 헬스 프로브를 보냄. 404 누적 시 컨테이너 죽임."""
+    return {"service": "lablog-backend", "health": "/api/health"}
+
+
+@app.get("/robots.txt")
+def robots():
+    return Response("User-agent: *\nDisallow: /\n", media_type="text/plain")
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok", "model_loaded": ANALYZER is not None}

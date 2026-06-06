@@ -17,6 +17,11 @@ WORKDIR /code
 COPY --chown=user requirements.txt /code/
 RUN pip install --no-cache-dir --user -r requirements.txt
 
+# EasyOCR 모델(CRAFT 탐지 + 한·영 인식) 사전 다운로드.
+# 없으면 컨테이너 첫 실행에서 ~150MB 다운로드 + 로드가 무료 CPU에서 5~15분 걸린다.
+# 빌드 layer에 캐시되어 다음 빌드부터 startup이 거의 즉시.
+RUN python -c "import easyocr; easyocr.Reader(['ko', 'en'], gpu=False)"
+
 COPY --chown=user . /code/
 
 # HF Spaces 기본 포트
