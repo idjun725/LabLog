@@ -1,7 +1,7 @@
 """LabLog 멀티모달 분석 모듈.
 
-YOLO(객체) + EasyOCR(텍스트) + Google STT(음성)를 한 결과 객체에 통합한다.
-camera_prototype.py(웹캠 데모)와 server.py(FastAPI)가 함께 사용한다.
+YOLO(객체) + EasyOCR(텍스트) + Groq Whisper(음성)를 한 결과 객체에 통합한다.
+server.py(FastAPI)가 호출한다.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ OCR_TEXT_SEPARATOR = " | " # 여러 crop의 OCR 결과를 하나의 문자열로
 
 
 def _filter_ocr_raw(raw) -> list[tuple[str, float]]:
-    """EasyOCR readtext 결과에 노이즈 필터 적용. detect_text / detect_text_in_regions 공통."""
+    """EasyOCR readtext 결과에 노이즈 필터 적용."""
     filtered: list[tuple[str, float]] = []
     for _, text, conf in raw:
         text = text.strip()
@@ -83,7 +83,7 @@ class AnalysisResult:
     detections: list[Detection]     # 박스 좌표 포함 — 실시간 오버레이용
     ocr: str
     ocr_confidence: float
-    speech: str                     # Google STT 전사 (해당 시각 발화)
+    speech: str                     # Groq Whisper 전사 (해당 시각 발화)
     avg_yolo_confidence: float
     brightness: float
     frame_width: int                # 박스 좌표를 매핑할 원본 프레임 크기
@@ -129,20 +129,6 @@ def get_assist_messages(
     return msgs
 
 
-def needs_assist(
-    result: AnalysisResult,
-    conf_threshold: float = 0.4,
-    brightness_threshold: float = 40.0,
-) -> bool:
-    """get_assist_messages의 bool 버전 — 하위 호환성 유지용 (camera_prototype 등).
-
-    OCR은 체크하지 않음 (메시지 분기가 의미 없는 단순 bool이라).
-    """
-    low_conf = bool(result.yolo) and result.avg_yolo_confidence < conf_threshold
-    too_dark = result.brightness < brightness_threshold
-    return low_conf or too_dark
-
-
 class LabLogAnalyzer:
     def __init__(
         self,
@@ -168,30 +154,27 @@ class LabLogAnalyzer:
             )
         return detections
 
-    def detect_text(self, frame: np.ndarray) -> tuple[str, float]:
-        """전체 프레임에 대한 OCR. camera_prototype.py 등 YOLO 컨텍스트가 없는 호출자용."""
-        filtered = _filter_ocr_raw(self.ocr.readtext(frame))
-        if not filtered:
-            return "", 0.0
-        texts = [t for t, _ in filtered]
-        confs = [c for _, c in filtered]
-        return " ".join(texts), sum(confs) / len(confs)
-
     def detect_text_in_regions(
         self, frame: np.ndarray, detections: list[Detection]
-    ) -> tuple[str, float]:
+    ) -> tuple[str, float, str]:
         """7세그먼트 YOLO (전체 프레임) + EasyOCR (YOLO bbox crop만) 병렬 적용.
 
         - 7세그먼트 YOLO는 빠르므로 **전체 프레임**에 1회 적용 — 디지털 디스플레이를
           best.pt가 탐지 못 한 위치(예: 스톱워치)에서도 캡처.
-        - EasyOCR은 무거우므로 **YOLO 탐지 박스**에만 적용 — 일반 라벨/측정값 인식 담당.
+        - EasyOCR은 무거우므로 **YOLO 탐지 박스**에만 적용 — 일반 라벨/측정값 인석 담당.
         - 텍스트가 중복되면 (예: 두 모델이 같은 디스플레이를 모두 읽음) dedup.
+
+        반환: (결합_텍스트, 평균_신뢰도, seg7_텍스트).
+        seg7_텍스트는 호출 측이 persistence filter를 우회하는 판단에 쓰도록 따로 노출.
+        7-seg는 자체 conf threshold로 이미 검증되므로 매 프레임 반복 검증할 필요가 없다.
         """
         all_texts: list[tuple[str, float]] = []
+        seg7_text = ""
 
         if seven_segment_classifier.is_available():
             seg7_full = seven_segment_classifier.detect_digits(frame)
             if seg7_full is not None:
+                seg7_text = seg7_full[0]
                 all_texts.append(seg7_full)
 
         h, w = frame.shape[:2]
@@ -213,13 +196,15 @@ class LabLogAnalyzer:
             all_texts.extend(_filter_ocr_raw(self.ocr.readtext(binary)))
 
         if not all_texts:
-            return "", 0.0
+            return "", 0.0, seg7_text
 
         # Dedup: 두 모델이 같은 텍스트를 잡았을 때 첫 confidence만 (dict 키 순서로 순서 보존)
         unique: dict[str, float] = {}
         for text, conf in all_texts:
             unique.setdefault(text, conf)
-        return OCR_TEXT_SEPARATOR.join(unique), sum(unique.values()) / len(unique)
+        combined = OCR_TEXT_SEPARATOR.join(unique)
+        avg_conf = sum(unique.values()) / len(unique)
+        return combined, avg_conf, seg7_text
 
     def _build_result(
         self,
@@ -255,8 +240,8 @@ class LabLogAnalyzer:
 
     def analyze_frame(self, frame: np.ndarray, timestamp: str) -> AnalysisResult:
         detections = self.detect_objects(frame)
-        ocr_text, ocr_conf = self.detect_text_in_regions(frame, detections)
-        # 실시간 단일 프레임에서는 STT를 돌리지 않는다 (스트리밍 STT는 별도 과제)
+        ocr_text, ocr_conf, _seg7 = self.detect_text_in_regions(frame, detections)
+        # 실시간 단일 프레임에서는 STT를 돌리지 않는다 (스트리밍 STT는 /ws/transcribe가 담당)
         return self._build_result(frame, timestamp, detections, ocr_text, ocr_conf, speech="")
 
     def analyze_video(
@@ -304,10 +289,11 @@ class LabLogAnalyzer:
             t_secs: list[float] = []  # records와 평행하게 시각을 보관 (후처리에서 speech 매칭용)
             prev_objects: frozenset[str] | None = None
             prev_ocr: str = ""
+            prev_seg7: str = ""  # 7-seg 텍스트는 persistence를 우회하므로 별도 추적
             last_ocr_sample = -ocr_period_samples  # 첫 프레임에서 무조건 OCR 실행되도록
             # 최근 PERSISTENCE_WINDOW 샘플의 YOLO 라벨 집합 — 깜빡이는 라벨 제거용
             recent_label_sets: deque[set[str]] = deque(maxlen=PERSISTENCE_WINDOW)
-            # OCR 시간적 일관성 필터 — YOLO와 같은 WINDOW/MIN_VOTES 상수 사용
+            # OCR 시간적 일관성 필터 — YOLO와 같은 WINDOW/MIN_VOTES 상수 사용 (EasyOCR 부분만)
             recent_ocr_texts: deque[str] = deque(maxlen=PERSISTENCE_WINDOW)
 
             idx = 0
@@ -342,19 +328,33 @@ class LabLogAnalyzer:
                     ocr_due = (sample_idx - last_ocr_sample) >= ocr_period_samples
 
                     if yolo_changed or ocr_due:
-                        ocr_text, ocr_conf = self.detect_text_in_regions(frame, detections)
+                        ocr_text, ocr_conf, seg7_text = self.detect_text_in_regions(
+                            frame, detections
+                        )
                         last_ocr_sample = sample_idx
                     else:
-                        ocr_text, ocr_conf = "", 0.0
+                        ocr_text, ocr_conf, seg7_text = "", 0.0, ""
 
-                    # OCR 시간적 일관성 필터: 최근 window에서 min_votes 이상 반복된 텍스트만 유효
-                    # (YOLO의 PERSISTENCE_WINDOW/MIN_VOTES 상수 공유)
+                    # 7-seg는 자체 conf threshold로 이미 검증되므로 persistence 우회 — 변화가
+                    # 보이는 즉시 record에 반영해야 디지털 측정값(스톱워치·온도) 추적이 가능하다.
+                    seg7_changed = bool(seg7_text) and seg7_text != prev_seg7
+                    if seg7_changed:
+                        print(
+                            f"[analyze] seg7 변화: '{prev_seg7}' → '{seg7_text}' (샘플 {sample_idx})",
+                            flush=True,
+                        )
+
+                    # EasyOCR 부분은 시간적 일관성 필터 — 최근 window에서 min_votes 이상
+                    # 반복된 결합 텍스트만 유효 (YOLO의 PERSISTENCE_WINDOW/MIN_VOTES 공유).
                     recent_ocr_texts.append(ocr_text)
                     text_vote_count = recent_ocr_texts.count(ocr_text)
-                    is_valid_ocr = (
+                    is_persistent_ocr = (
                         text_vote_count >= PERSISTENCE_MIN_VOTES and bool(ocr_text)
                     )
-                    ocr_changed = is_valid_ocr and ocr_text != prev_ocr
+                    ocr_changed = (
+                        seg7_changed
+                        or (is_persistent_ocr and ocr_text != prev_ocr)
+                    )
                     is_first = sample_idx == 0
 
                     if is_first or yolo_changed or ocr_changed:
@@ -370,6 +370,8 @@ class LabLogAnalyzer:
                         prev_objects = current_objects
                         if ocr_text:
                             prev_ocr = ocr_text
+                        if seg7_text:
+                            prev_seg7 = seg7_text
 
                     sample_idx += 1
                     idx += 1

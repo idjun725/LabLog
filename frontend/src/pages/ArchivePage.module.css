@@ -5,7 +5,80 @@
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  background: #f5f4f1;
+  position: relative;
+}
+
+.paperBg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  background-color: #eeeae2;
+  background-image:
+    linear-gradient(
+      42deg,
+      transparent 26%, rgba(0,0,0,0.055) 31%,
+      rgba(255,255,255,0.72) 33.5%, rgba(0,0,0,0.04) 36%,
+      transparent 42%
+    ),
+    linear-gradient(
+      -55deg,
+      transparent 14%, rgba(0,0,0,0.05) 20%,
+      rgba(255,255,255,0.65) 22.5%, rgba(0,0,0,0.038) 25%,
+      transparent 31%
+    ),
+    linear-gradient(
+      118deg,
+      transparent 40%, rgba(0,0,0,0.042) 46%,
+      rgba(255,255,255,0.58) 48.5%, rgba(0,0,0,0.032) 51%,
+      transparent 57%
+    ),
+    linear-gradient(
+      -18deg,
+      transparent 56%, rgba(0,0,0,0.038) 61%,
+      rgba(255,255,255,0.52) 63.5%, rgba(0,0,0,0.028) 66%,
+      transparent 72%
+    ),
+    linear-gradient(
+      162deg,
+      transparent 18%, rgba(0,0,0,0.032) 24%,
+      rgba(255,255,255,0.48) 26.5%, rgba(0,0,0,0.025) 29%,
+      transparent 35%
+    ),
+    linear-gradient(
+      78deg,
+      transparent 60%, rgba(0,0,0,0.03) 65%,
+      rgba(255,255,255,0.42) 67%, rgba(0,0,0,0.022) 69%,
+      transparent 74%
+    ),
+    radial-gradient(ellipse 85% 60% at 72% 28%, rgba(195,182,158,0.38) 0%, transparent 58%),
+    radial-gradient(ellipse 70% 55% at 22% 72%, rgba(190,178,152,0.32) 0%, transparent 52%),
+    radial-gradient(ellipse 55% 50% at 50% 52%, rgba(0,0,0,0.022) 0%, transparent 62%),
+    radial-gradient(ellipse 45% 38% at 38% 85%, rgba(185,173,148,0.28) 0%, transparent 48%),
+    radial-gradient(ellipse 65% 55% at 12% 12%, rgba(255,255,255,0.82) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 45% at 82% 82%, rgba(255,255,255,0.68) 0%, transparent 45%),
+    radial-gradient(ellipse 42% 38% at 50% 18%, rgba(255,255,255,0.60) 0%, transparent 42%);
+}
+
+.paperBg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.32;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='5' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 190px 190px;
+}
+
+.paperBg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.10;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.018 0.45' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+  background-size: 320px 320px;
 }
 
 .header {
@@ -29,43 +102,113 @@
 .title {
   flex: 1;
   text-align: center;
-  font-size: 1.2rem;
-  font-weight: 700;
+  font-size: 1.6rem;
+  font-weight: 800;
   margin: 0;
-  color: #111;
+  color: #31316e;
   padding-right: 2rem;
+}
+
+.folderTab {
+  flex-shrink: 0;
+  height: 68px;
+  position: relative;
+}
+
+.folderTab::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 35%;
+  height: 68%;
+  background: var(--lab-folder);
+  clip-path: polygon(0% 100%, 0% 15%, 1% 7%, 3% 2%, 5% 0%, 78% 0%, 100% 100%);
+}
+
+.folderTab::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 62%;
+  background: var(--lab-folder);
+  border-radius: 0 10px 0 0;
 }
 
 .list {
   list-style: none;
   margin: 0;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  padding: 0;
+  display: block;
+  position: relative;
   flex: 1;
+}
+
+.list > li {
+  position: absolute;
+  left: 0;
+  right: 0;
 }
 
 .docCard {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 1.25rem 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  align-items: flex-start;
+  position: absolute;
+  inset: 0;
+  background: var(--lab-white);
+  border: 1px solid var(--lab-card-border);
+  border-radius: 0 14px 14px 14px;
+  padding: 0.5rem 1.5rem 0.5rem 0.75rem;
   text-decoration: none;
   cursor: pointer;
+  filter: drop-shadow(0 -10px 22px rgba(0, 0, 0, 0.22)) drop-shadow(0 5px 16px rgba(0, 0, 0, 0.14));
+  transition: filter 0.24s ease;
+}
+
+.docCard::before {
+  content: '';
+  position: absolute;
+  top: -1.4rem;
+  left: 0;
+  width: 30%;
+  height: 1.4rem;
+  background: linear-gradient(to bottom, var(--lab-white) calc(100% - 1px), var(--lab-card-border) 100%);
+  clip-path: polygon(0% 100%, 0% 20%, 1% 9%, 3% 2%, 87.5% 0%, 100% 100%);
+}
+
+.docCard:active {
+  filter: drop-shadow(0 -2px 6px rgba(0, 0, 0, 0.10)) drop-shadow(0 1px 10px rgba(0, 0, 0, 0.10));
 }
 
 .docTitle {
-  font-size: 1.1rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: #111;
 }
 
-.arrow {
-  font-size: 1.4rem;
-  color: #bbb;
-  line-height: 1;
+.folderFooter {
+  flex-shrink: 0;
+  height: 62px;
+  background: var(--lab-folder-footer);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chevron {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  color: #999;
+  padding: 2rem;
+  text-align: center;
 }

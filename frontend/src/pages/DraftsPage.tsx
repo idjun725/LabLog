@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { listDrafts, listHiddenMockIds, type Draft } from '../api/lablog'
+import {
+  isDraftSeen,
+  listDrafts,
+  listHiddenMockIds,
+  type Draft,
+} from '../api/lablog'
 import styles from './DraftsPage.module.css'
 
+// mock 항목들도 실제 분석 완료 draft와 동일한 형식으로 표시 (분석 완료 + 클립).
 const MOCK_ITEMS = [
-  { id: '1', title: '보고서A', status: '초안 검수', hasClip: true },
-  { id: '2', title: '보고서B', status: '초안 제작 중...', hasClip: false },
-  { id: '3', title: '보고서C', status: '최종본 제작 중...', hasClip: false },
-  { id: '4', title: '보고서D', status: '최종본 검수', hasClip: true },
-  { id: '5', title: '보고서E', status: '최종본 검수', hasClip: true },
+  { id: '1', title: '보고서A' },
+  { id: '2', title: '보고서B' },
+  { id: '3', title: '보고서C' },
+  { id: '4', title: '보고서D' },
+  { id: '5', title: '보고서E' },
 ]
 
 const POLL_INTERVAL_MS = 2000
@@ -25,17 +31,17 @@ function statusLabel(status: Draft['status']): string {
   }
 }
 
-function Paperclip() {
+function Paperclip({ seen }: { seen: boolean }) {
   return (
     <svg
-      className={styles.clip}
+      className={`${styles.clip} ${seen ? styles.clipSeen : styles.clipUnseen}`}
       viewBox="0 0 30 72"
       fill="none"
-      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
     >
       <path
         d="M22 10 C22 5 8 5 8 10 L8 52 C8 62 22 62 22 52 L22 14 C22 9 12 9 12 14 L12 48"
-        stroke="#c0392b"
+        stroke="currentColor"
         strokeWidth="3.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -77,7 +83,7 @@ export function DraftsPage() {
         <ul className={styles.list}>
           {drafts.map((d) => (
             <li key={d.id} className={styles.cardWrap}>
-              <Paperclip />
+              <Paperclip seen={isDraftSeen(d.id)} />
               <Link to={`/analysis/${d.id}`} className={styles.card}>
                 <span className={styles.cardTitle}>{d.title}</span>
                 <span className={styles.cardStatus}>({statusLabel(d.status)})</span>
@@ -87,10 +93,10 @@ export function DraftsPage() {
           ))}
           {visibleMocks.map((item) => (
             <li key={item.id} className={styles.cardWrap}>
-              {item.hasClip && <Paperclip />}
+              <Paperclip seen={true} />
               <Link to={`/report/${item.id}`} className={styles.card}>
                 <span className={styles.cardTitle}>{item.title}</span>
-                <span className={styles.cardStatus}>({item.status})</span>
+                <span className={styles.cardStatus}>(분석 완료)</span>
               </Link>
               <div className={styles.fold} />
             </li>

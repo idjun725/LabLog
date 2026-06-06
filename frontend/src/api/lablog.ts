@@ -354,6 +354,39 @@ export async function transcribeRecording(
   })
 }
 
+// ─── draft "본 적 있음" 표시 ──────────────────────────────────────
+// HomePage 임시 보관함 버튼의 빨간 배지에 미확인 draft 개수를 띄우기 위해 사용.
+// markDraftSeen은 AnalysisDetailPage 진입 시 호출, getUnseenDraftCount는 HomePage 진입 시 호출.
+
+const SEEN_DRAFTS_KEY = 'lablog:seen-drafts'
+
+function readSeenDraftIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(SEEN_DRAFTS_KEY)
+    return new Set<string>(raw ? JSON.parse(raw) : [])
+  } catch {
+    return new Set()
+  }
+}
+
+export function markDraftSeen(id: string): void {
+  const seen = readSeenDraftIds()
+  if (seen.has(id)) return
+  seen.add(id)
+  localStorage.setItem(SEEN_DRAFTS_KEY, JSON.stringify([...seen]))
+}
+
+export function isDraftSeen(id: string): boolean {
+  return readSeenDraftIds().has(id)
+}
+
+// 보고서 미생성 상태(즉 /drafts에 나타나는) 진짜 draft 중 아직 안 본 것 수.
+// mock 항목은 카운트하지 않는다.
+export function getUnseenDraftCount(): number {
+  const seen = readSeenDraftIds()
+  return readDrafts().filter((d) => !d.report && !seen.has(d.id)).length
+}
+
 // ─── mock 보고서 숨김 처리 ───────────────────────────────────────────
 // DraftsPage / ArchivePage의 mock 항목은 코드에 하드코딩되어 있으므로,
 // 사용자가 '삭제'하면 숨김 id 집합에 추가해 리스트에서 가린다.

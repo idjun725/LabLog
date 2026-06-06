@@ -1,0 +1,278 @@
+.shell {
+  height: 100dvh;
+  width: 100%;
+  max-width: 430px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.1rem;
+  background: #fff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+  gap: 0.5rem;
+}
+
+.back {
+  font-size: 1.9rem;
+  line-height: 1;
+  color: #222;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.headerCenter {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.cardTitleEditable {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.3rem;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 100%;
+  font-family: inherit;
+}
+
+.cardTitleEditable:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.cardTitleStatic {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111;
+  padding: 0.2rem 0.4rem;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.cardTitlePencil {
+  margin-left: 0.25rem;
+  font-size: 0.7rem;
+  color: #999;
+}
+
+.cardTitleInput {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111;
+  text-align: center;
+  border: 1px solid #c7d2fe;
+  border-radius: 0.4rem;
+  padding: 0.2rem 0.4rem;
+  background: #fff;
+  font-family: inherit;
+  width: 100%;
+  max-width: 14rem;
+}
+
+.cardTitleInput:focus {
+  outline: none;
+  border-color: var(--lab-lavender, #8e94c1);
+  box-shadow: 0 0 0 3px rgba(142, 148, 193, 0.18);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.editAnalysisBtn {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 0.4rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #3730a3;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.trashBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #e53935;
+  display: flex;
+  align-items: center;
+}
+
+.downloadBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #222;
+  display: flex;
+  align-items: center;
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.pages {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  width: 200%;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.page {
+  width: 50%;
+  height: 100%;
+  overflow-y: auto;
+  padding: 0.85rem 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  box-sizing: border-box;
+}
+
+/* ── 실험 제목 카드 ── */
+.titleCard {
+  border: 2px solid #1a237e;
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem 0.9rem;
+  min-height: 5rem;
+  background: #fff;
+}
+
+.titleBadge {
+  display: inline-flex;
+  align-items: center;
+  background: #1a237e;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 6px;
+  padding: 0.22rem 0.55rem;
+}
+
+.titleValue {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: #111;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+/* ── 번호 행 ── */
+.row {
+  display: flex;
+  border: 2px solid #1a237e;
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 4rem;
+}
+
+.labelCol {
+  width: 7rem;
+  flex-shrink: 0;
+  background: #e8eaf6;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.55rem 0.4rem;
+  border-right: 1.5px solid #1a237e;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  flex-shrink: 0;
+  background: #1a237e;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 5px;
+}
+
+.labelText {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #1a237e;
+  line-height: 1.55rem;
+  word-break: keep-all;
+}
+
+.valueCol {
+  flex: 1;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.82rem;
+  color: #111;
+  line-height: 1.7;
+  background: #fff;
+  min-height: 4rem;
+}
+
+.pre {
+  margin: 0;
+  font-family: inherit;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.7;
+  color: #111;
+}
+
+.bullet {
+  margin-bottom: 0.2rem;
+}
+
+/* ── 페이지 지시자 ── */
+.pageFooter {
+  flex-shrink: 0;
+  width: 100%;
+  padding: 0.45rem 1.1rem;
+  text-align: right;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #1a237e;
+  background: #fff;
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  color: #999;
+}

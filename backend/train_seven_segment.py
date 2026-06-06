@@ -23,7 +23,7 @@ RUNS_DIR = Path(__file__).parent / "runs"
 RUN_NAME = "seven_segment"
 BASE_MODEL = "yolov8n.pt"
 EPOCHS = 30
-IMGSZ = 320
+IMGSZ = 640  # 작은 7-seg 검출력 위해 320 → 640. 더 키우면 학습 시간 ↑
 
 
 def main() -> None:

@@ -19,8 +19,17 @@ from ultralytics import YOLO
 
 WEIGHTS_PATH = Path(__file__).parent / "seven_segment_weights.pt"
 
-# YOLO 기본보다 다소 높게 — false positive(비-숫자 영역) 방지.
-DEFAULT_CONF_THRESHOLD = 0.5
+# 7-seg는 _filter_ocr_raw·temporal filter 둘 다 우회하므로 이 한 값이 유일한 게이트.
+# 포괄적 검출을 위해 낮게 설정 — 모델이 약하게 감지한 숫자도 결과에 포함.
+# false positive가 늘어나면 0.35~0.4로 조정.
+DEFAULT_CONF_THRESHOLD = 0.25
+
+# 추론 해상도 — 학습 시 imgsz(320)보다 크게 줘서 원거리/작은 7-seg 검출 능력 ↑.
+# 학습 imgsz는 모델 구조와 무관하므로 추론 시 더 큰 값 사용 가능 (속도-정확도 trade-off).
+# 320: 학습 동일 (빠름, 작은 객체 놓침)
+# 640: 권장 (중간 속도, 일반 카메라 거리에서 양호)
+# 1280: 작은 7-seg에 가장 좋음 (느림)
+INFERENCE_IMGSZ = 1280
 
 _model: YOLO | None = None
 _load_failed: bool = False
@@ -65,7 +74,7 @@ def detect_digits(
     if crop.ndim == 2:
         crop = cv2.cvtColor(crop, cv2.COLOR_GRAY2BGR)
 
-    result = model(crop, verbose=False, conf=conf_threshold)[0]
+    result = model(crop, verbose=False, conf=conf_threshold, imgsz=INFERENCE_IMGSZ)[0]
     if len(result.boxes) == 0:
         return None
 

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { AppShell } from '../components/AppShell'
 import { LabLogLogo } from '../components/LabLogLogo'
 import logoStyles from '../components/LabLogLogo.module.css'
+import { getUnseenDraftCount } from '../api/lablog'
 import styles from './HomePage.module.css'
 
 function UploadIcon() {
@@ -26,7 +27,7 @@ function UploadIcon() {
 function CameraIcon() {
   return (
     <svg
-      className={`${styles.heroIcon} ${styles.heroIconCamera}`}
+      className={styles.heroIcon}
       viewBox="0 0 64 64"
       aria-hidden
     >
@@ -41,6 +42,8 @@ function CameraIcon() {
 }
 
 export function HomePage() {
+  const unseenCount = getUnseenDraftCount()
+
   return (
     <AppShell variant="home">
       <div className={styles.paperBg} aria-hidden />
@@ -52,7 +55,7 @@ export function HomePage() {
           <span>동영상 업로드</span>
         </Link>
 
-        <Link to="/record" className={`${styles.btn} ${styles.btnLavender} ${styles.btnTall}`}>
+        <Link to="/record" className={`${styles.btn} ${styles.btnRecord} ${styles.btnTall}`}>
           <CameraIcon />
           <span>동영상 촬영</span>
         </Link>
@@ -62,9 +65,11 @@ export function HomePage() {
         </Link>
 
         <Link to="/drafts" className={`${styles.btn} ${styles.btnNavy} ${styles.btnShort}`}>
-          <span className={styles.badge} aria-label="새 항목 3건">
-            3
-          </span>
+          {unseenCount > 0 && (
+            <span className={styles.badge} aria-label={`새 항목 ${unseenCount}건`}>
+              {unseenCount}
+            </span>
+          )}
           임시 보관함
         </Link>
       </div>

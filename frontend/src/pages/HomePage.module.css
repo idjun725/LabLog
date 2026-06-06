@@ -131,7 +131,16 @@
   background: var(--lab-navy);
 }
 
-.btnLavender {
+.btnNavy:active {
+  background: var(--lab-lavender);
+  box-shadow: 0 6px 20px rgba(142, 148, 193, 0.38);
+}
+
+.btnRecord {
+  background: var(--lab-navy);
+}
+
+.btnRecord:active {
   background: var(--lab-lavender);
   box-shadow: 0 6px 20px rgba(142, 148, 193, 0.38);
 }
@@ -142,11 +151,6 @@
   color: var(--lab-white);
   flex-shrink: 0;
   shape-rendering: geometricPrecision;
-}
-
-/* 라벤더 동영상 촬영 박스 배경(#8e94c1)과 톤 맞춘 쿨 화이트 */
-.heroIconCamera {
-  color: color-mix(in srgb, var(--lab-white) 94%, var(--lab-lavender));
 }
 
 .badge {

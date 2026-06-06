@@ -6,6 +6,7 @@ import {
   deleteDraft,
   generateReport,
   getDraft,
+  markDraftSeen,
   updateDraftInfo,
   updateDraftRecord,
   updateDraftTitle,
@@ -22,6 +23,10 @@ export function AnalysisDetailPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const [draft, setDraft] = useState<Draft | null>(() => getDraft(id))
+
+  useEffect(() => {
+    if (id) markDraftSeen(id)
+  }, [id])
 
   const handleDelete = useCallback(() => {
     if (!window.confirm('이 분석 결과를 삭제하시겠습니까?')) return

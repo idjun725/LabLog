@@ -8,6 +8,11 @@
   --lab-paper-mid: #f3f2ef;
   --lab-text-logo: #2a3158;
   --lab-font: 'Noto Sans KR', 'Apple SD Gothic Neo', system-ui, sans-serif;
+  --lab-ring: #5c5f9e;
+  --lab-ring-track: #d5d7e3;
+  --lab-folder: #ffa200;
+  --lab-folder-footer: #e8bb33;
+  --lab-card-border: rgba(0, 0, 0, 0.18);
 }
 
 *,
