@@ -1,3 +1,13 @@
+---
+title: LabLog Backend
+emoji: 🧪
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # LabLog Backend
 
 기획서 1단계(멀티모달 분석) 중 **영상 파이프라인**(YOLO 객체 탐지 + EasyOCR 텍스트 인식).

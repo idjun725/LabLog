@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import tempfile
 import time
 from contextlib import asynccontextmanager
@@ -68,9 +69,15 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="LabLog Backend", version="0.1.0", lifespan=lifespan)
 
-# 개발 환경: localhost/127.0.0.1의 모든 포트(Vite, preview, 다른 dev 도구)에서 허용
+# 개발: localhost/127.0.0.1 모든 포트 허용. 배포: 환경변수 PROD_FRONTEND_ORIGIN으로
+# 정확한 Vercel/배포 origin 한 개 추가 (e.g. "https://lablog.vercel.app").
+# 콤마로 구분해 여러 도메인 지정 가능 ("https://a.vercel.app,https://lablog.com").
+_prod_origins = [
+    o.strip() for o in os.getenv("PROD_FRONTEND_ORIGIN", "").split(",") if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=_prod_origins,
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
     allow_credentials=True,
     allow_methods=["*"],
