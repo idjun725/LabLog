@@ -1,5 +1,5 @@
 .shell {
-  height: 100dvh;
+  min-height: 100dvh;
   width: 100%;
   max-width: 430px;
   margin: 0 auto;
@@ -9,6 +9,9 @@
 }
 
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -133,23 +136,24 @@
 
 .content {
   flex: 1;
-  min-height: 0;
   position: relative;
-  overflow: hidden;
+  /* 가로 스와이프(translateX) 동안 옆 페이지가 화면 밖으로 나가야 하므로 가로는 hidden,
+     세로는 컨텐츠가 자라 페이지 전체 스크롤로 보이도록 visible. */
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .pages {
-  position: absolute;
-  inset: 0;
   display: flex;
   width: 200%;
+  /* 두 페이지 높이가 달라도 각자 자기 컨텐츠 만큼만 차지하게 (stretch 하면
+     짧은 페이지가 긴 페이지 높이에 늘어나 빈 영역이 커짐). */
+  align-items: flex-start;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .page {
   width: 50%;
-  height: 100%;
-  overflow-y: auto;
   padding: 0.85rem 0.85rem 1rem;
   display: flex;
   flex-direction: column;
@@ -190,8 +194,11 @@
   display: flex;
   border: 2px solid #1a237e;
   border-radius: 8px;
+  /* overflow: hidden은 둥근 모서리를 위해 유지 — 자식이 row 밖으로 나가는 것만 자르고,
+     row 자체 height는 자식 컨텐츠에 맞춰 자유롭게 늘어남. */
   overflow: hidden;
   min-height: 4rem;
+  /* 높이 상한은 두지 않음 — 텍스트가 많으면 그만큼 자람. */
 }
 
 .labelCol {
@@ -254,6 +261,10 @@
 
 /* ── 페이지 지시자 ── */
 .pageFooter {
+  /* 컨텐츠가 길어 페이지가 viewport보다 커져도 footer가 항상 하단에 보이게. */
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
   flex-shrink: 0;
   width: 100%;
   padding: 0.45rem 1.1rem;
