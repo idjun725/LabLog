@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { GeneratedReport } from '../api/lablog'
 import styles from './ReportDetailView.module.css'
@@ -13,7 +13,7 @@ type Props = {
   analysisEditHref?: string
 }
 
-// 2페이지 좌우 스와이프 보고서 뷰. mock 보고서와 real draft 보고서가 같은 뷰를 공유한다.
+// 단일 세로 스크롤 보고서 뷰. mock 보고서와 real draft 보고서가 같은 뷰를 공유한다.
 export function ReportDetailView({
   report,
   cardTitle,
@@ -22,29 +22,6 @@ export function ReportDetailView({
   onTitleChange,
   analysisEditHref,
 }: Props) {
-  const [page, setPage] = useState(1)
-  const touchStartX = useRef<number | null>(null)
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX
-  }
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return
-    const dx = e.changedTouches[0].clientX - touchStartX.current
-    touchStartX.current = null
-    if (dx < -50 && page === 1) setPage(2)
-    else if (dx > 50 && page === 2) setPage(1)
-  }
-
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') setPage((p) => Math.min(p + 1, 2))
-      else if (e.key === 'ArrowLeft') setPage((p) => Math.max(p - 1, 1))
-    }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [])
-
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
@@ -86,73 +63,51 @@ export function ReportDetailView({
       </header>
 
       <main className={styles.content}>
-        <div
-          className={styles.pages}
-          style={{ transform: `translateX(${page === 1 ? '0' : '-50%'})` }}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          onTouchCancel={() => { touchStartX.current = null }}
-        >
-          {/* 1페이지 */}
-          <div className={styles.page}>
-            <div className={styles.titleCard}>
-              <span className={styles.titleBadge}>실험 제목</span>
-              <div className={styles.titleValue}>{report.title}</div>
-            </div>
-
-            <Row num={1} label="실험 날짜">{report.date || '데이터 부족'}</Row>
-
-            <Row num={2} label="선행 연구">
-              <pre className={styles.pre}>{report.preliminary_research}</pre>
-            </Row>
-
-            <Row num={3} label="실험 목적">
-              <pre className={styles.pre}>{report.objective}</pre>
-            </Row>
-
-            <Row num={4} label="가설">
-              <pre className={styles.pre}>{report.hypothesis}</pre>
-            </Row>
-
-            <Row num={5} label="준비물">
-              {report.materials.length > 0 ? report.materials.join(', ') : '데이터 부족'}
-            </Row>
-
-            <Row num={6} label="실험 방법">
-              <pre className={styles.pre}>{report.method}</pre>
-            </Row>
-          </div>
-
-          {/* 2페이지 */}
-          <div className={styles.page}>
-            <Row num={7} label="실험 과정">
-              {report.procedure.length > 0 ? (
-                report.procedure.map((p, i) => (
-                  <div key={i} className={styles.bullet}>{i + 1}) {p}</div>
-                ))
-              ) : (
-                '데이터 부족'
-              )}
-            </Row>
-
-            <Row num={8} label="실험 결과">
-              <pre className={styles.pre}>{report.results}</pre>
-            </Row>
-
-            <Row num={9} label="결론">
-              <pre className={styles.pre}>{report.conclusion}</pre>
-            </Row>
-          </div>
+        <div className={styles.titleCard}>
+          <span className={styles.titleBadge}>실험 제목</span>
+          <div className={styles.titleValue}>{report.title}</div>
         </div>
-      </main>
 
-      <button
-        className={styles.pageFooter}
-        onClick={() => setPage((p) => (p === 1 ? 2 : 1))}
-        aria-label={page === 1 ? '다음 페이지' : '이전 페이지'}
-      >
-        {page} / 2
-      </button>
+        <Row num={1} label="실험 날짜">{report.date || '데이터 부족'}</Row>
+
+        <Row num={2} label="선행 연구">
+          <pre className={styles.pre}>{report.preliminary_research}</pre>
+        </Row>
+
+        <Row num={3} label="실험 목적">
+          <pre className={styles.pre}>{report.objective}</pre>
+        </Row>
+
+        <Row num={4} label="가설">
+          <pre className={styles.pre}>{report.hypothesis}</pre>
+        </Row>
+
+        <Row num={5} label="준비물">
+          {report.materials.length > 0 ? report.materials.join(', ') : '데이터 부족'}
+        </Row>
+
+        <Row num={6} label="실험 방법">
+          <pre className={styles.pre}>{report.method}</pre>
+        </Row>
+
+        <Row num={7} label="실험 과정">
+          {report.procedure.length > 0 ? (
+            report.procedure.map((p, i) => (
+              <div key={i} className={styles.bullet}>{i + 1}) {p}</div>
+            ))
+          ) : (
+            '데이터 부족'
+          )}
+        </Row>
+
+        <Row num={8} label="실험 결과">
+          <pre className={styles.pre}>{report.results}</pre>
+        </Row>
+
+        <Row num={9} label="결론">
+          <pre className={styles.pre}>{report.conclusion}</pre>
+        </Row>
+      </main>
     </div>
   )
 }
