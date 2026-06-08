@@ -11,9 +11,9 @@ LabLog is a multimodal AI system that records / uploads a science experiment vid
    - **EasyOCR** for general labels/measurements — runs **only on YOLO bbox crops** (each OTSU-binarized for accuracy).
    - **7-segment YOLOv8 detector** (`seven_segment_weights.pt`, lazy-loaded if present) for digital displays — runs **on the full frame** (fast, catches digits regardless of whether the device is in `best.pt` vocab).
    - Two temporal-consistency filters reject "flashing" detections: one for YOLO labels, one for OCR text — both `PERSISTENCE_WINDOW=4` / `PERSISTENCE_MIN_VOTES=2`. **Trade-off**: text on un-detected non-digit objects (e.g., a chemical bottle label YOLO misses) is lost — the user accepted this in exchange for noise reduction, with the plan to broaden `best.pt` vocab.
-2. **Audio analysis** — **Groq Whisper** (`whisper-large-v3-turbo`). Two paths:
-   - **Batch**: post-hoc transcription via ffmpeg → wav → 10-minute chunks → `verbose_json` segments with timestamps. Used by `/api/analyze/video` and `/api/record/transcribe`.
-   - **Realtime**: `/ws/transcribe` WebSocket — accepts 6s WebM/Opus chunks from MediaRecorder, gated by `is_speech_in_chunk()` RMS VAD (skips silent chunks to save API calls), sends back `TranscribeChunkMessage` per chunk. Hallucination defense: `temperature=0`, regex repetition filter, sentence-repetition filter, prompt-echo filter, plus 3-strike `empty_streak` context reset on the server side. RecordPage streams audio chunks during recording and matches transcripts to records by `elapsed_sec`.
+2. **Audio analysis** — **하이브리드 STT** (배치는 Google STT, 실시간은 Groq Whisper):
+   - **Batch (Google Cloud Speech-to-Text)**: post-hoc transcription via ffmpeg → wav → 55-second chunks → `recognize()` per chunk with word_time_offsets. Used by `/api/analyze/video` and `/api/record/transcribe`. `SpeechContext.phrases`로 실험 도메인 어휘(비커·시험관·전자저울·pH 등) boost. Whisper의 TPM 한도·환각을 피하기 위해 배치만 Google로 이동.
+   - **Realtime (Groq Whisper `whisper-large-v3-turbo`)**: `/ws/transcribe` WebSocket — accepts 6s WebM/Opus chunks from MediaRecorder, gated by `is_speech_in_chunk()` RMS VAD (skips silent chunks to save API calls), sends back `TranscribeChunkMessage` per chunk. Hallucination defense: `temperature=0`, regex repetition filter, sentence-repetition filter, prompt-echo filter, plus 3-strike `empty_streak` context reset on the server side. RecordPage streams audio chunks during recording and matches transcripts to records by `elapsed_sec`. 짧은 청크 단위라 Groq 한도 영향 적고 streaming 지연이 낮아 Whisper 유지.
    - **TTS**: Edge TTS (`ko-KR-InJoonNeural`) via `/api/tts` — RecordPage speaks the latest assist message every ≥6s during recording.
 3. **Vector conversion** — multimodal `records` → 23-dim feature vectors (15 YOLO vocab one-hot + 6 OCR + 2 STT).
 4. **Stage classification** — bidirectional GRU (hidden=32, 1 layer) classifies each timestamp into one of 4 phases: `준비 / 반응 / 측정 및 관찰 / 정리`.
@@ -63,7 +63,12 @@ $env:GROQ_API_KEY = 'gsk-...'
 $env:GROQ_API_KEY = [Environment]::GetEnvironmentVariable('GROQ_API_KEY', 'User')
 ```
 
-`GROQ_API_KEY` gates **both STT and report generation** (Whisper and gpt-oss are both Groq endpoints). `/api/report/generate` returns 503 without it; STT silently returns empty segments. ffmpeg is **optional** but without it STT and the realtime VAD both degrade silently. `ROBOFLOW_API_KEY` is only used by the training scripts (`train_seven_segment.py`, `train_main_yolo.py`). `edge-tts` is **required** for `/api/tts` (returns 503 otherwise). (Note: the previous Google Cloud STT path — `GOOGLE_APPLICATION_CREDENTIALS`, `google-cloud-speech`, and the on-disk `gcp-credentials.json` — has been fully removed.)
+**STT 자격증명은 path별로 분리**:
+- **배치 STT (Google)**: `GCP_CREDENTIALS_JSON` (HF Spaces secret 권장 — Service Account JSON 내용 통째로) **또는** `GOOGLE_APPLICATION_CREDENTIALS` (로컬 — 파일 경로). 둘 중 하나 있으면 동작. 없으면 silent fallback으로 빈 SpeechSegment[] 반환.
+- **실시간 STT (Whisper)** + **보고서 생성** + **단계 분류 없이** **TTS도 별개**: `GROQ_API_KEY`. 없으면 `/api/report/generate`는 503, 실시간 STT는 silent skip.
+- ffmpeg는 두 path 모두에 필요한 사전 처리 (배치는 WAV 추출, 실시간은 VAD용 PCM 디코드).
+- `ROBOFLOW_API_KEY`는 학습 스크립트만 (`train_seven_segment.py`, `train_main_yolo.py`).
+- `edge-tts`는 `/api/tts`에 필수 (없으면 503).
 
 ## Architecture
 
@@ -100,11 +105,12 @@ CORS allows `localhost`/`127.0.0.1` on any port via regex (dev convenience).
   - **OCR noise filter (`_filter_ocr_raw`)**, used by `detect_text_in_regions` and the 7-seg path: `OCR_MIN_CONFIDENCE=0.5`, `OCR_MIN_LENGTH=2`, `OCR_MIN_DIGIT_RATIO=0.25`, plus `NUMERIC_PATTERN` (must contain a digit).
 - **`seven_segment_classifier.py`** — Lazy-loading wrapper around an ultralytics `YOLO(seven_segment_weights.pt)`. `is_available()` is a cheap path-existence check safe to call per-frame; `detect_digits(crop, conf_threshold)` returns `(joined_digits_string, avg_confidence) | None` with digits sorted left-to-right by bbox x-coord. Grayscale input is auto-converted to BGR (YOLO requires 3 channels). `_load_failed` flag prevents repeated load-failure attempts. If the weights file is absent, `is_available()` returns False and `detect_text_in_regions` skips the seg7 call entirely — graceful degradation.
 - **`train_seven_segment.py`** / **`train_main_yolo.py`** — CLI training scripts following the same pattern: read `ROBOFLOW_API_KEY`, download the named Roboflow project/version as `yolov8` format (reused if `data.yaml` already exists), train via `ultralytics.YOLO.train()`, copy the resulting `runs/<name>/weights/best.pt` to the canonical location (`seven_segment_weights.pt` / `best.pt`). `train_main_yolo.py` additionally **backs up the existing `best.pt`** to `best.backup_YYYYMMDD_HHMMSS.pt` before overwriting — do not skip this when modifying the script.
-- **`stt.py`** — **Groq Whisper** (`whisper-large-v3-turbo`). Two entry points:
-  - **Batch**: `extract_and_transcribe(media_path)` → `SpeechSegment[]` with timestamps. ffmpeg → 16kHz mono PCM WAV → Whisper `verbose_json`. Files >25MB are auto-split into `WHISPER_CHUNK_SECONDS=600` chunks and timestamps re-offset. `find_speech_at(t_sec, segments)` does the record-to-speech matching.
-  - **Realtime**: `transcribe_bytes(audio_bytes, suffix, language, prior_text)` → `str`. `response_format="json"` (no timestamps), `temperature=0.0`. `prior_text` is trimmed and prepended to `WHISPER_PROMPT` for vocab/style continuity.
+- **`stt.py`** — **하이브리드 STT** (배치 path와 실시간 path가 다른 엔진 사용). 두 path는 서로 독립적으로 비활성화 가능 — 한 쪽 자격증명만 있어도 다른 쪽은 silent skip.
+  - **Batch (Google STT)**: `extract_and_transcribe(media_path)` → `SpeechSegment[]` with timestamps. ffmpeg → 16kHz mono PCM WAV → `GOOGLE_STT_CHUNK_SECONDS=55` 단위 청크 분할 → `client.recognize(config, audio)` per chunk with `enable_word_time_offsets=True` and `SpeechContext(phrases=GOOGLE_STT_PHRASES, boost=15.0)`. `find_speech_at(t_sec, segments)` does the record-to-speech matching.
+    - **자격증명 두 가지 경로** (`_get_google_client`): `GCP_CREDENTIALS_JSON` env(JSON 내용 전체, HF Spaces secret 권장) 우선 → fallback으로 `GOOGLE_APPLICATION_CREDENTIALS`(파일 경로, 로컬 개발).
+  - **Realtime (Groq Whisper)**: `transcribe_bytes(audio_bytes, suffix, language, prior_text)` → `str`. `whisper-large-v3-turbo`, `response_format="json"`, `temperature=0.0`. `prior_text` is trimmed and prepended to `WHISPER_PROMPT` for vocab/style continuity.
   - **VAD**: `is_speech_in_chunk(audio_bytes)` decodes via ffmpeg pipe → s16le PCM → numpy RMS, compared against `REALTIME_RMS_THRESHOLD`. Below → skip Whisper. ffmpeg/numpy missing → returns True (conservative).
-  - **Hallucination defense (3-layer)** in `transcribe_bytes`: (1) `_HALLUCINATION_PATTERN` regex `(.{1,3})\1{3,}` ("난난난난"), (2) `_has_sentence_repetition` ("X. X. X." snowballs), (3) `_is_prompt_echo` (Whisper regurgitating its own `prior_text`). All three return `""` so the caller treats it as a silent chunk.
+  - **Hallucination defense (3-layer)** in `transcribe_bytes` (Whisper 한정 — Google STT는 환각이 적어 불필요): (1) `_HALLUCINATION_PATTERN` regex `(.{1,3})\1{3,}` ("난난난난"), (2) `_has_sentence_repetition` ("X. X. X." snowballs), (3) `_is_prompt_echo` (Whisper regurgitating its own `prior_text`). All three return `""` so the caller treats it as a silent chunk.
   - On ffmpeg failure the **last 5 lines** of stderr are shown (not the head, since ffmpeg's banner fills the first 1KB).
 - **`tts.py`** — Edge TTS (Microsoft, free). `synthesize(text, voice=DEFAULT_VOICE)` is `async` (FastAPI handler awaits directly) and returns `bytes | None`. `DEFAULT_VOICE="ko-KR-InJoonNeural"`. Missing package → `tts_available()` returns False → `/api/tts` returns 503.
 - **`train_common.py`** — Shared helpers used by both `train_main_yolo.py` and `train_seven_segment.py`: `backup_with_timestamp(path)`, `download_roboflow_dataset(workspace, project, version, location)`, `train_and_export(base_model, data_yaml, runs_dir, run_name, weights_out, epochs, imgsz, patience, device)`.
@@ -226,7 +232,7 @@ The following were intentionally deleted in a cleanup pass — re-adding them wi
 - **`backend/extract_frames.py`** — manual frame-sampling helper for Roboflow labeling. Roboflow Universe + the `train_main_yolo.py` Roboflow SDK path made it unused.
 - **`backend/train_yolo_local.py`** and **`backend/train_yolo.ipynb`** — older training scripts superseded by `train_main_yolo.py` + [KAGGLE_TRAINING.md](backend/KAGGLE_TRAINING.md).
 - **`backend/7SEGMENT_SETUP.md`** — described the abandoned single-digit CNN approach. The current YOLOv8 detection path is documented in KAGGLE_TRAINING.md.
-- **`backend/gcp-credentials.json`** + `google-cloud-speech` package — Google Cloud STT was replaced by Groq Whisper.
+- ~~**`backend/gcp-credentials.json`** + `google-cloud-speech` package — Google Cloud STT was replaced by Groq Whisper.~~ **(되돌림)** — 배치 STT를 Google STT로 다시 도입해 Groq TPM 한도 부담을 분산. 자격증명은 `GCP_CREDENTIALS_JSON` env(JSON 통째) 또는 `GOOGLE_APPLICATION_CREDENTIALS`(파일 경로)로 받음. 디스크의 `gcp-credentials.json`은 여전히 두지 않음 (git ignore).
 - **`analyzer.detect_text()`** (full-frame OCR) and **`analyzer.needs_assist()`** — the only callers were `camera_prototype.py`. `detect_text_in_regions` is now the sole OCR path; `get_assist_messages` is the sole assist path.
 
 ## In-progress work

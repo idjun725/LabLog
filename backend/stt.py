@@ -1,17 +1,24 @@
-"""음성 → 텍스트 (Groq Whisper) 모듈.
+"""음성 → 텍스트 모듈 (하이브리드).
 
-영상에서 오디오를 추출(ffmpeg)하고 Groq Whisper로 전사한다.
-ffmpeg 또는 GROQ_API_KEY가 없으면 자동 비활성화되며, 호출 측은 빈 결과만 받아
-시스템 전체는 계속 동작한다 (silent fallback).
+영상에서 오디오를 추출(ffmpeg)한 뒤 두 가지 path가 분기:
 
-- 배치 path: extract_and_transcribe(video_path) → SpeechSegment[]
-- 실시간 path: transcribe_bytes(opus_bytes) → str (WebSocket 핸들러용)
+- 배치 path: Google Cloud Speech-to-Text
+    extract_and_transcribe(video_path) → SpeechSegment[]
+    이유: Groq Whisper의 TPM/RPM 한도 우려를 피하고, 시점별 word-level
+    timing이 안정적. 정확도는 Whisper보다 약간 낮지만 보고서 단계에서 충분.
+- 실시간 path: Groq Whisper (변경 없음)
+    transcribe_bytes(opus_bytes) → str (WebSocket 핸들러용)
+    이유: 작은 청크가 자주 들어와 streaming 지연이 중요. Whisper는 6초
+    청크 단위 인식이 빠르고 정확도 우수. 호출 횟수당 token 사용량이 적어
+    Groq 한도 영향 적음.
 
-배치는 verbose_json으로 시점별 segment를 받고, 실시간은 plain text로 빠르게.
+ffmpeg / 자격증명 / 라이브러리가 없으면 자동 비활성화되며 호출 측은 빈 결과만 받아
+시스템 전체는 계속 동작 (silent fallback).
 """
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -20,15 +27,39 @@ import time
 import wave
 from dataclasses import dataclass
 
+# 실시간 path용 (Groq Whisper)
 try:
     from groq import Groq
-    _STT_LIB_OK = True
+    _GROQ_LIB_OK = True
 except ImportError:
     Groq = None  # type: ignore
-    _STT_LIB_OK = False
+    _GROQ_LIB_OK = False
+
+# 배치 path용 (Google Cloud Speech-to-Text)
+try:
+    from google.cloud import speech
+    from google.oauth2 import service_account
+    _GOOGLE_LIB_OK = True
+except ImportError:
+    speech = None  # type: ignore
+    service_account = None  # type: ignore
+    _GOOGLE_LIB_OK = False
 
 
 WHISPER_MODEL = "whisper-large-v3-turbo"
+
+# 배치 STT용 — Google STT는 60초 이상 single recognize() 호출을 거부 (LongRunning 필요).
+# 55초 청크로 자르면 안전하게 동기 recognize() 사용 가능.
+GOOGLE_STT_LANGUAGE = "ko-KR"
+GOOGLE_STT_CHUNK_SECONDS = 55
+# Whisper PROMPT를 Google SpeechContext.phrases로 포팅 — 도메인 어휘 인식 boost.
+GOOGLE_STT_PHRASES = [
+    "비커", "시험관", "전자저울", "메스실린더", "피펫", "뷰렛",
+    "알코올램프", "스포이트", "온도계", "자석교반기", "스톱워치", "시약병",
+    "적정", "중화", "산화", "환원", "전기분해",
+    "pH", "농도", "몰농도", "그램", "밀리리터", "도씨",
+    "측정", "관찰", "반응", "결과",
+]
 
 # 실험 용어 bias — Whisper가 도메인 단어를 정확히 인식하도록 prompt에 주입.
 # (jarvis-assistant의 WHISPER_PROMPT 패턴을 lab 어휘로 교체.)
@@ -123,20 +154,61 @@ class SpeechSegment:
 # ── 가용성/클라이언트 ────────────────────────────────────────────────────
 
 def stt_available() -> bool:
-    """STT 실제 사용 가능 여부 (라이브러리 + API key)."""
-    if not _STT_LIB_OK:
-        return False
-    return bool(os.getenv("GROQ_API_KEY"))
+    """배치 또는 실시간 STT 중 하나라도 사용 가능하면 True."""
+    return _google_available() or _groq_available()
 
 
-def _get_client():
-    if not stt_available():
+def _groq_available() -> bool:
+    return _GROQ_LIB_OK and bool(os.getenv("GROQ_API_KEY"))
+
+
+def _get_groq_client():
+    """실시간 path 전용."""
+    if not _groq_available():
         return None
     try:
         return Groq(api_key=os.environ["GROQ_API_KEY"])
     except Exception as e:
         print(f"[stt] Groq 클라이언트 초기화 실패: {e}", flush=True)
         return None
+
+
+def _google_available() -> bool:
+    """배치 path 전용. 두 가지 자격증명 방식 중 하나라도 있으면 True.
+    1) GCP_CREDENTIALS_JSON env (HF Spaces secret 권장 — JSON 내용 통째로)
+    2) GOOGLE_APPLICATION_CREDENTIALS env (로컬 개발 — 파일 경로)
+    """
+    if not _GOOGLE_LIB_OK:
+        return False
+    return bool(os.getenv("GCP_CREDENTIALS_JSON")) or bool(
+        os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    )
+
+
+def _get_google_client():
+    """배치 path 전용. JSON env가 우선, 없으면 GOOGLE_APPLICATION_CREDENTIALS의
+    파일 경로로 SDK 기본 동작.
+    """
+    if not _GOOGLE_LIB_OK:
+        print("[stt] google-cloud-speech 미설치 — 배치 STT 비활성", flush=True)
+        return None
+    creds_json = os.getenv("GCP_CREDENTIALS_JSON")
+    if creds_json:
+        try:
+            info = json.loads(creds_json)
+            credentials = service_account.Credentials.from_service_account_info(info)
+            return speech.SpeechClient(credentials=credentials)
+        except Exception as e:
+            print(f"[stt] GCP_CREDENTIALS_JSON 파싱·초기화 실패: {e}", flush=True)
+            return None
+    if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+        try:
+            return speech.SpeechClient()
+        except Exception as e:
+            print(f"[stt] Google STT 클라이언트 초기화 실패: {e}", flush=True)
+            return None
+    print("[stt] Google STT 자격증명 미설정 — 배치 STT 비활성", flush=True)
+    return None
 
 
 # ── 오디오 추출 (ffmpeg) ─────────────────────────────────────────────────
@@ -177,40 +249,44 @@ def extract_audio(video_path: str) -> str | None:
 
 # ── 배치 전사 ────────────────────────────────────────────────────────────
 
-def transcribe(wav_path: str, language: str = "ko") -> list[SpeechSegment]:
-    """WAV → Groq Whisper → SpeechSegment 리스트. 길면 청크 분할."""
-    client = _get_client()
+def transcribe(wav_path: str, language: str = GOOGLE_STT_LANGUAGE) -> list[SpeechSegment]:
+    """WAV → Google Cloud Speech-to-Text → SpeechSegment 리스트.
+    Google STT의 동기 recognize()는 60초 미만만 허용하므로 55초 청크로 분할.
+    """
+    client = _get_google_client()
     if client is None:
-        if not _STT_LIB_OK:
-            print("[stt] groq 미설치 — 건너뜀", flush=True)
-        else:
-            print("[stt] GROQ_API_KEY 미설정 — 건너뜀", flush=True)
         return []
 
     duration = _wav_duration(wav_path)
-    size = os.path.getsize(wav_path)
-
-    if size <= WHISPER_MAX_FILE_BYTES:
+    if duration <= GOOGLE_STT_CHUNK_SECONDS:
         print(
-            f"[stt] 전사 시작 (음성 {duration:.1f}초, "
-            f"{size/1024/1024:.1f}MB, 단일 호출)",
+            f"[stt] 전사 시작 (음성 {duration:.1f}초, Google STT 단일 호출)",
             flush=True,
         )
-        return _whisper_file(client, wav_path, language, offset=0.0)
+        return _google_recognize_file(client, wav_path, language, offset=0.0)
 
-    chunk_count = int((duration + WHISPER_CHUNK_SECONDS - 1) // WHISPER_CHUNK_SECONDS)
-    print(f"[stt] 전사 시작 (음성 {duration:.1f}초, 청크 {chunk_count}개)", flush=True)
-
+    chunk_count = int(
+        (duration + GOOGLE_STT_CHUNK_SECONDS - 1) // GOOGLE_STT_CHUNK_SECONDS
+    )
+    print(
+        f"[stt] 전사 시작 (음성 {duration:.1f}초, Google STT 청크 {chunk_count}개)",
+        flush=True,
+    )
     segments: list[SpeechSegment] = []
     for i in range(chunk_count):
-        start = i * WHISPER_CHUNK_SECONDS
-        end = min(start + WHISPER_CHUNK_SECONDS, duration)
+        start = i * GOOGLE_STT_CHUNK_SECONDS
+        end = min(start + GOOGLE_STT_CHUNK_SECONDS, duration)
         chunk_path = _extract_wav_chunk(wav_path, start, end)
         if not chunk_path:
             continue
-        print(f"[stt] 청크 {i+1}/{chunk_count} 전사 중 ({start:.0f}s-{end:.0f}s)", flush=True)
+        print(
+            f"[stt] 청크 {i+1}/{chunk_count} 전사 중 ({start:.0f}s-{end:.0f}s)",
+            flush=True,
+        )
         try:
-            segments.extend(_whisper_file(client, chunk_path, language, offset=start))
+            segments.extend(
+                _google_recognize_file(client, chunk_path, language, offset=start)
+            )
         finally:
             try:
                 os.unlink(chunk_path)
@@ -219,38 +295,54 @@ def transcribe(wav_path: str, language: str = "ko") -> list[SpeechSegment]:
     return segments
 
 
-def _whisper_file(client, path: str, language: str, offset: float) -> list[SpeechSegment]:
-    """단일 파일을 Whisper에 보내고 SpeechSegment[] 반환. offset은 글로벌 timeline 보정용."""
+def _google_recognize_file(
+    client, path: str, language: str, offset: float
+) -> list[SpeechSegment]:
+    """단일 WAV 청크 → Google STT recognize() → SpeechSegment[].
+    offset은 글로벌 timeline 보정용 (청크 시작 시각).
+    """
     t0 = time.monotonic()
     try:
         with open(path, "rb") as f:
-            result = client.audio.transcriptions.create(
-                file=(os.path.basename(path), f.read()),
-                model=WHISPER_MODEL,
-                language=language,
-                prompt=WHISPER_PROMPT,
-                response_format="verbose_json",
-            )
+            content = f.read()
+        config = speech.RecognitionConfig(
+            encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+            sample_rate_hertz=16000,
+            language_code=language,
+            enable_word_time_offsets=True,
+            enable_automatic_punctuation=True,
+            speech_contexts=[
+                speech.SpeechContext(phrases=GOOGLE_STT_PHRASES, boost=15.0)
+            ],
+        )
+        audio = speech.RecognitionAudio(content=content)
+        response = client.recognize(config=config, audio=audio)
     except Exception as e:
-        print(f"[stt] Whisper 호출 실패: {e}", flush=True)
+        print(f"[stt] Google STT 호출 실패: {e}", flush=True)
         return []
 
     segments: list[SpeechSegment] = []
-    raw_segs = getattr(result, "segments", None) or []
-    for s in raw_segs:
-        if isinstance(s, dict):
-            text = (s.get("text") or "").strip()
-            start = float(s.get("start") or 0.0)
-            end = float(s.get("end") or 0.0)
+    for result in response.results:
+        if not result.alternatives:
+            continue
+        alt = result.alternatives[0]
+        text = (alt.transcript or "").strip()
+        if not text:
+            continue
+        # word_time_offsets에서 segment의 [start, end] 추출.
+        if alt.words:
+            start = alt.words[0].start_time.total_seconds() + offset
+            end = alt.words[-1].end_time.total_seconds() + offset
         else:
-            text = (getattr(s, "text", "") or "").strip()
-            start = float(getattr(s, "start", 0.0))
-            end = float(getattr(s, "end", 0.0))
-        if text:
-            segments.append(SpeechSegment(start=start + offset, end=end + offset, text=text))
+            start = offset
+            end = offset
+        segments.append(SpeechSegment(start=start, end=end, text=text))
 
     elapsed = time.monotonic() - t0
-    print(f"[stt] Whisper 응답 ({elapsed:.1f}초, 세그먼트 {len(segments)}개)", flush=True)
+    print(
+        f"[stt] Google STT 응답 ({elapsed:.1f}초, 세그먼트 {len(segments)}개)",
+        flush=True,
+    )
     return segments
 
 
@@ -273,7 +365,7 @@ def transcribe_bytes(
     prior_text: 직전 청크의 인식 결과. Whisper prompt에 함께 주입해 문맥/스타일 연속성 ↑.
     가벼운 호출: verbose_json 대신 json. 빈손이거나 실패 시 빈 문자열.
     """
-    client = _get_client()
+    client = _get_groq_client()
     if client is None:
         return ""
 
