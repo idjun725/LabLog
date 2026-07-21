@@ -15,7 +15,7 @@ LabLog is a multimodal AI system that records / uploads a science experiment vid
    - **Batch (Google Cloud Speech-to-Text)**: post-hoc transcription via ffmpeg → wav → 55-second chunks → `recognize()` per chunk with word_time_offsets. Used by `/api/analyze/video` and `/api/record/transcribe`. `SpeechContext.phrases`로 실험 도메인 어휘(비커·시험관·전자저울·pH 등) boost. Whisper의 TPM 한도·환각을 피하기 위해 배치만 Google로 이동.
    - **Realtime (Groq Whisper `whisper-large-v3-turbo`)**: `/ws/transcribe` WebSocket — accepts 6s WebM/Opus chunks from MediaRecorder, gated by `is_speech_in_chunk()` RMS VAD (skips silent chunks to save API calls), sends back `TranscribeChunkMessage` per chunk. Hallucination defense: `temperature=0`, regex repetition filter, sentence-repetition filter, prompt-echo filter, plus 3-strike `empty_streak` context reset on the server side. RecordPage streams audio chunks during recording and matches transcripts to records by `elapsed_sec`. 짧은 청크 단위라 Groq 한도 영향 적고 streaming 지연이 낮아 Whisper 유지.
    - **TTS**: Edge TTS (`ko-KR-InJoonNeural`) via `/api/tts` — RecordPage speaks the latest assist message every ≥6s during recording.
-3. **Vector conversion** — multimodal `records` → 23-dim feature vectors (15 YOLO vocab one-hot + 6 OCR + 2 STT).
+3. **Vector conversion** — multimodal `records` → 801-dim feature vectors (25 YOLO vocab one-hot + 6 OCR + 2 STT baseline + 768 SBERT sentence embedding). SBERT via `jhgan/ko-sroberta-multitask` on the `speech` field — batch-encoded per `vectorize_records()` call; empty strings return zero vectors (no encode cost, and preserves the `has_speech` binary as an explicit signal). A `use_sbert=False` mode returns the 33-dim baseline — kept for the LOEO evaluator.
 4. **Stage classification** — bidirectional GRU (hidden=32, 1 layer) classifies each timestamp into one of 4 phases: `준비 / 반응 / 측정 및 관찰 / 정리`.
 5. **Report generation** — Groq LLM via OpenAI-compatible API. Currently `openai/gpt-oss-20b` (only the `openai/gpt-oss-*` family supports strict `json_schema` on Groq; 20b chosen over 120b for larger TPM headroom on the free tier). When GRU phases are available, `_format_records()` chunks consecutive same-phase records into a single block and dedupes objects/OCR/speech within each block — significantly shrinks the prompt for long videos.
 
@@ -37,8 +37,19 @@ npm run preview      # serve dist/ on :4173
 # `uvicorn` PATH entry may resolve to global Store-Python (missing deps).
 .\.venv\Scripts\python.exe -m uvicorn server:app --reload --port 8000
 
-# Train the GRU stage classifier (~30s on CPU, writes gru_weights.pt)
+# Train the GRU stage classifier (~30s on CPU, writes gru_weights.pt).
+# First run downloads SBERT model ~420MB into HF cache; subsequent runs reuse it.
 .\.venv\Scripts\python.exe train_gru.py
+
+# Evaluate baseline vs SBERT via 5-fold Leave-One-Experiment-Out CV + Wilcoxon.
+# Reports fold-wise accuracy/macroF1 (mean±std), signed-rank p-value, confusion matrices.
+.\.venv\Scripts\python.exe evaluate_gru.py
+
+# Add a new hand-labeled experiment to training_data.json.
+# Re-runs analyze_video() on <video_path>, prints records as a table,
+# then prompts for range-based phase labels ("1-5: 1", "6-12: 2", …).
+# Auto-backs up training_data.json to training_data.backup_YYYYMMDD_HHMMSS.json.
+.\.venv\Scripts\python.exe label_experiment.py <video_path> [--title "제목"] [--dry-run]
 
 # Train the 7-segment YOLOv8 detector (CPU OK for small dataset, writes seven_segment_weights.pt)
 .\.venv\Scripts\python.exe train_seven_segment.py
@@ -69,6 +80,11 @@ $env:GROQ_API_KEY = [Environment]::GetEnvironmentVariable('GROQ_API_KEY', 'User'
 - ffmpeg는 두 path 모두에 필요한 사전 처리 (배치는 WAV 추출, 실시간은 VAD용 PCM 디코드).
 - `ROBOFLOW_API_KEY`는 학습 스크립트만 (`train_seven_segment.py`, `train_main_yolo.py`).
 - `edge-tts`는 `/api/tts`에 필수 (없으면 503).
+
+## Deployment
+
+- **Backend → Hugging Face Spaces** ([backend/Dockerfile](backend/Dockerfile)): `python:3.12-slim` base + apt `ffmpeg / libgl1 / libglib2.0-0`, non-root `user` (uid 1000), listens on port `7860`. Build layer pre-downloads (a) EasyOCR CRAFT + ko/en recognition models (~150MB) and (b) SBERT `jhgan/ko-sroberta-multitask` (~420MB) — otherwise first request on free-tier CPU stalls 5–15 min on EasyOCR and adds another ~1 min on SBERT while downloading. Add `GCP_CREDENTIALS_JSON` (JSON contents inline) and `GROQ_API_KEY` as Space secrets; don't ship `gcp-credentials.json` on disk.
+- **Frontend → Vercel** ([frontend/vercel.json](frontend/vercel.json)): single SPA rewrite `/(.*) → /index.html` so React Router deep links (`/analysis/:id`, `/report/:id`, etc.) don't 404 on hard reload. Set the backend URL via Vite env var at build time.
 
 ## Architecture
 
@@ -114,7 +130,9 @@ CORS allows `localhost`/`127.0.0.1` on any port via regex (dev convenience).
   - On ffmpeg failure the **last 5 lines** of stderr are shown (not the head, since ffmpeg's banner fills the first 1KB).
 - **`tts.py`** — Edge TTS (Microsoft, free). `synthesize(text, voice=DEFAULT_VOICE)` is `async` (FastAPI handler awaits directly) and returns `bytes | None`. `DEFAULT_VOICE="ko-KR-InJoonNeural"`. Missing package → `tts_available()` returns False → `/api/tts` returns 503.
 - **`train_common.py`** — Shared helpers used by both `train_main_yolo.py` and `train_seven_segment.py`: `backup_with_timestamp(path)`, `download_roboflow_dataset(workspace, project, version, location)`, `train_and_export(base_model, data_yaml, runs_dir, run_name, weights_out, epochs, imgsz, patience, device)`.
-- **`vectorizer.py`** — `YOLO_VOCAB` ordering is the feature-index order. **Changing it requires retraining the GRU** (state_dict shape changes).
+- **`vectorizer.py`** — `YOLO_VOCAB` ordering is the feature-index order. **Changing it requires retraining the GRU** (state_dict shape changes). `vectorize_records(records, use_sbert=True)` is the production path (801-dim); passes speech texts to `sbert_encoder.encode()` in a single batch. Legacy `vectorize_record()` returns baseline 33-dim without SBERT — kept only for the LOEO evaluator's baseline arm.
+- **`sbert_encoder.py`** — Singleton lazy-loader for `jhgan/ko-sroberta-multitask` (768-dim). `encode(texts)` skips SBERT for empty/whitespace texts and returns zero rows for them (cost + explicit signal). `is_available()` catches missing package / model download failure so callers can fall back. Model cache lives in HF's default location (`~/.cache/huggingface`); pre-downloaded in the Dockerfile build layer for HF Spaces cold-start.
+- **`evaluate_gru.py`** — 5-fold Leave-One-Experiment-Out CV comparing baseline (33-dim) vs SBERT (801-dim). Same hyperparameters (Adam lr=1e-3, 200 epochs, seed=42) so accuracy delta is attributable to the feature change alone. Reports fold-wise accuracy/macroF1 (mean±std), Wilcoxon signed-rank p-value (both one-sided `SBERT>Baseline` and two-sided), and confusion matrices for each mode. **n_folds=5 → Wilcoxon is severely underpowered; use p-values as directional hints only.**
 - **`gru_model.py`** — `PHASES` list order = output class index. **Changing it requires retraining** (`gru_weights.pt` becomes incompatible; `gru_classifier.py` catches state_dict mismatch and surfaces a retrain prompt).
 - **`gru_classifier.py`** — lazy-loads weights into a module-level `_model` singleton.
 - **`report_generator.py`** — Groq via `openai>=1.50` SDK with `base_url="https://api.groq.com/openai/v1"`. **Only `openai/gpt-oss-20b` and `openai/gpt-oss-120b` support strict `json_schema`** (required by `client.beta.chat.completions.parse(response_format=PydanticModel)`). Other Groq models (llama, qwen) return 400. `generate_report(records, filename, phases=None, info=None)` — when `phases` provided, `_format_records` groups consecutive same-phase records into one block per phase and dedupes objects/OCR/speech texts within the block (token compression for long videos). When `phases=None`, it falls back to one line per record. When `info` (dict) provided, `_format_info` injects user-supplied experiment context (`실험 제목`, `실험 주제`, `실험 날짜`, `가설`, `기타 메모`) into the user message — these are user-stated facts the LLM should reflect, not infer. The Groq `parse()` returns the parsed Pydantic instance on `response.choices[0].message.parsed`; `None` triggers a `RuntimeError` (no auto-fallback).
@@ -139,7 +157,8 @@ CORS allows `localhost`/`127.0.0.1` on any port via regex (dev convenience).
 | `server.py` | `CONTEXT_RESET_AFTER` (3) in `ws_transcribe` | Consecutive silent/empty chunks before `running_context` resets — stops stale context from re-triggering echo forever. |
 | `tts.py` | `DEFAULT_VOICE` (`"ko-KR-InJoonNeural"`) | Edge TTS voice. Alternatives: SunHi (female), BongJin, Hyunsu. |
 | `train_main_yolo.py` | `ROBOFLOW_*`, `EPOCHS` (50), `IMGSZ` (640), `PATIENCE` (15) | Main YOLO fine-tuning. Edit constants at the top to retarget a new Roboflow project/version. |
-| `vectorizer.py` | `YOLO_VOCAB`, `FEATURE_DIM` | Feature space — changing requires GRU retrain |
+| `vectorizer.py` | `YOLO_VOCAB`, `FEATURE_DIM` (= `SBERT_FEATURE_DIM` = 801), `BASELINE_FEATURE_DIM` (33) | Feature space — changing requires GRU retrain |
+| `sbert_encoder.py` | `MODEL_NAME` (`"jhgan/ko-sroberta-multitask"`), `SBERT_DIM` (768) | SBERT model. Switching model → `FEATURE_DIM` changes → GRU retrain + Dockerfile pre-download update. |
 | `gru_model.py` | `PHASES` | Output classes — changing requires retrain |
 | `report_generator.py` | `MODEL_NAME` | Groq model — only `openai/gpt-oss-{20b,120b}` support strict json_schema |
 | `frontend/src/pages/LoadingPage.tsx` | `sampleFps: 1` (in `uploadAndAnalyze` call) | Backend frame sample rate |
@@ -204,7 +223,7 @@ The RecordPage flow is analogous but kicks off audio transcription separately (`
 
 ## Recurring foot-guns
 
-- **Changing `PHASES` or `FEATURE_DIM`** invalidates `gru_weights.pt`. The size-mismatch error from `state_dict` is caught with a clear "run `python train_gru.py`" message — don't silently `try/except` around it.
+- **Changing `PHASES` or `FEATURE_DIM`** invalidates `gru_weights.pt`. The size-mismatch error from `state_dict` is caught with a clear "run `python train_gru.py`" message — don't silently `try/except` around it. This also fires when swapping the SBERT model (different `SBERT_DIM`) or reverting to baseline (`use_sbert=False` requires a separately-trained 33-dim weights file — currently the production path always includes SBERT).
 - **Only EasyOCR is YOLO-gated** — 7-segment YOLO runs on the full frame. So a stopwatch is captured even with zero `best.pt` detections, but a printed label like "NaOH 1M" on a YOLO-missed bottle is lost. Mitigation: broaden `best.pt` vocab via `train_main_yolo.py` (in progress on `chemistry-lab-object-detection-topas`). Do **not** reintroduce a full-frame EasyOCR fallback without discussing — the previous `OCR_FALLBACK_THRESHOLD` was deliberately removed.
 - **`ocr` field is multi-text joined.** When several detections each yield text, results are concatenated with `" | "` into one string. The `vectorizer.py` digit-ratio / unit-pattern features still work because `re.search` is order-agnostic. Downstream consumers parsing `ocr` must split on `" | "`.
 - **Groq model selection** for report generation: `parse()` requires strict json_schema → must use `openai/gpt-oss-*`. Other models 400. TPM limits differ (gpt-oss-120b: 8K TPM free tier; gpt-oss-20b ≈30K). Default is **gpt-oss-20b** (more TPM headroom). If you ever switch to 120b for quality and hit TPM caps on long videos: (a) ensure phases are passed (triggers `_format_records` compression), (b) further compact the formatter, or (c) drop to non-strict (`response_format={"type":"json_object"}` + manual `json.loads`).

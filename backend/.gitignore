@@ -1,6 +1,5 @@
 __pycache__/
 *.py[cod]
-*.pt
 *.onnx
 *.wav
 logs/
@@ -9,6 +8,11 @@ snapshots/
 venv/
 gcp-credentials.json
 *.gcp-credentials.json
+
+# YOLOv8 base model — ultralytics가 필요 시 자동으로 다시 다운로드
+yolov8n.pt
+# train_main_yolo.py가 만드는 이전 best.pt 백업본
+best.backup_*.pt
 
 # YOLO 학습 산출물
 Chemistry-Lab-Object-Detection-1/

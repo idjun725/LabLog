@@ -64,3 +64,8 @@ From `backend/`:
 - `frontend/src/pages/RecordPage.tsx`
 - `frontend/src/pages/AnalysisDetailPage.tsx`
 - `frontend/src/pages/ReportDetailPage.tsx`
+
+## AI 에이전트 헬퍼 파일
+- 리포지토리에서 AI 에이전트의 빠른 진입을 돕기 위한 파일:
+	- [ .github/copilot-instructions.md ](.github/copilot-instructions.md) — 빠른 실행 커맨드, 핵심 제약, 에이전트 행동 원칙을 요약합니다.
+	- [CLAUDE.md](CLAUDE.md) — 상세 아키텍처·운영 규칙(권장 참조).

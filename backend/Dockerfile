@@ -22,6 +22,11 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # 빌드 layer에 캐시되어 다음 빌드부터 startup이 거의 즉시.
 RUN python -c "import easyocr; easyocr.Reader(['ko', 'en'], gpu=False)"
 
+# SBERT 모델(jhgan/ko-sroberta-multitask, ~420MB) 사전 다운로드.
+# GRU 단계 분류 입력으로 STT 문장 임베딩을 쓴다. 미리 캐시하지 않으면
+# 첫 /api/classify 호출 시 다운로드 지연이 크다.
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('jhgan/ko-sroberta-multitask')"
+
 COPY --chown=user . /code/
 
 # HF Spaces 기본 포트

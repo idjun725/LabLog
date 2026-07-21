@@ -11,3 +11,6 @@ google-cloud-speech>=2.27.0
 edge-tts>=6.0.0
 torchvision>=0.20.0
 roboflow>=1.1.0
+sentence-transformers>=3.0.0
+scipy>=1.11.0
+scikit-learn>=1.4.0

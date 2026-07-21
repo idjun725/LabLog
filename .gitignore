@@ -19,10 +19,14 @@ node_modules/
 .venv/
 venv/
 __pycache__/
-*.pt
 *.onnx
 *.wav
 gcp-credentials.json
+
+# YOLOv8 base model — ultralytics가 필요 시 자동으로 다시 다운로드
+yolov8n.pt
+# train_main_yolo.py가 만드는 이전 best.pt 백업본 — 리포지토리에 담을 필요 없음
+best.backup_*.pt
 
 # YOLO 학습 산출물 — Roboflow 데이터셋(수백 MB), ultralytics 학습 로그/체크포인트
 backend/Chemistry-Lab-Object-Detection-1/
