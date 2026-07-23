@@ -11,6 +11,9 @@ gcp-credentials.json
 
 # YOLOv8 base model — ultralytics가 필요 시 자동으로 다시 다운로드
 yolov8n.pt
+# YOLO-World 사전학습 가중치 — open_vocab_detector.py가 필요 시 자동으로 다시 다운로드
+# (테스트 중 CWD에 떨어진 것들 — 커밋 대상 아님)
+yolov8*-world*.pt
 # train_main_yolo.py가 만드는 이전 best.pt 백업본
 best.backup_*.pt
 

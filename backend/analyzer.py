@@ -19,6 +19,7 @@ import numpy as np
 from ultralytics import YOLO
 
 from stt import extract_and_transcribe, find_speech_at
+import open_vocab_detector
 import seven_segment_classifier
 
 DEFAULT_YOLO_WEIGHTS = "best.pt"           # 실험기구 25개 클래스 fine-tuned (2026-05)
@@ -38,6 +39,14 @@ OCR_TEXT_SEPARATOR = " | " # 여러 crop의 OCR 결과를 하나의 문자열로
 # 7세그먼트 YOLOv8 detector는 EasyOCR보다 훨씬 빨라서 전체 프레임에 적용 (다중 자릿수 지원).
 # 디지털 디스플레이는 7-seg가 잡고, 일반 라벨/측정값은 EasyOCR이 crop에서 잡는 역할 분담.
 # conf 임계값은 seven_segment_classifier.DEFAULT_CONF_THRESHOLD가 소유.
+
+# ── 개방 어휘(YOLO-World) detector 라우팅 ────────────────────────────────
+# best.pt(고정 25개 클래스, 빠르고 정확)는 항상 실행. custom_classes가 주어진 요청에
+# 한해서만 YOLO-World를 추가로 돌려 best.pt 어휘 밖 사물을 프롬프트 기반으로 보충 탐지
+# — 대체가 아니라 보조. custom_classes가 없으면 open_vocab_detector는 호출조차 되지
+# 않아 추론 비용이 들지 않는다. 두 모델의 결과는 detect_objects()에서 단순 병합되며,
+# 이후 시간적 일관성 필터(PERSISTENCE_WINDOW/MIN_VOTES)와 EasyOCR crop 대상 선정에
+# best.pt 탐지와 동일하게 취급된다.
 
 
 def _filter_ocr_raw(raw) -> list[tuple[str, float]]:
@@ -63,9 +72,11 @@ def _filter_ocr_raw(raw) -> list[tuple[str, float]]:
 # ── YOLO 시간적 일관성 필터 — 깜빡이는 오탐 제거용 ─────────────────────
 # 최근 PERSISTENCE_WINDOW 샘플 중 PERSISTENCE_MIN_VOTES번 이상 등장한 라벨만 인정.
 # 단, 현재 프레임에 그 라벨이 실제로 있어야 함 (사라진 객체를 계속 표시하지 않도록).
-# 신뢰도가 아무리 높아도 한 번만 반짝하고 사라지는 라벨은 잡음으로 간주해 제거된다.
+# 예외: confidence가 PERSISTENCE_HIGH_CONF_BYPASS 이상이면 등장 횟수와 무관하게
+# 즉시 확정 — 이 정도로 확신도가 높으면 한 프레임만 봐도 잡음이 아닐 가능성이 크다고 판단.
 PERSISTENCE_WINDOW = 4
 PERSISTENCE_MIN_VOTES = 2
+PERSISTENCE_HIGH_CONF_BYPASS = 0.5
 
 
 @dataclass
@@ -141,8 +152,23 @@ class LabLogAnalyzer:
         self.ocr = easyocr.Reader(ocr_langs or DEFAULT_OCR_LANGS, gpu=gpu)
         self.conf_threshold = conf_threshold
 
-    def detect_objects(self, frame: np.ndarray) -> list[Detection]:
-        result = self.yolo(frame, verbose=False, conf=self.conf_threshold)[0]
+    def detect_objects(
+        self,
+        frame: np.ndarray,
+        custom_classes: list[str] | None = None,
+        allowed_classes: list[str] | None = None,
+    ) -> list[Detection]:
+        # allowed_classes가 주어지면 best.pt 25개 중 그 이름들만 탐지하도록 ultralytics의
+        # classes= 필터를 사용 — 사용자가 영상에 등장하는 기자재를 미리 알 때 나머지
+        # 24개와 혼동될 여지를 원천 차단 (예: 비커/삼각 플라스크 오분류 방지).
+        # 비어있거나 미지정이면 기존처럼 25개 전체 탐지 (기본값 보존).
+        class_ids = None
+        if allowed_classes:
+            name_to_id = {name: idx for idx, name in self.yolo.names.items()}
+            class_ids = [name_to_id[name] for name in allowed_classes if name in name_to_id]
+        result = self.yolo(
+            frame, verbose=False, conf=self.conf_threshold, classes=class_ids
+        )[0]
         detections = []
         for box in result.boxes:
             detections.append(
@@ -152,6 +178,13 @@ class LabLogAnalyzer:
                     box=tuple(map(int, box.xyxy[0])),
                 )
             )
+
+        if custom_classes:
+            for label, conf, box in open_vocab_detector.detect_objects(
+                frame, custom_classes
+            ):
+                detections.append(Detection(label=label, confidence=conf, box=box))
+
         return detections
 
     def detect_text_in_regions(
@@ -238,8 +271,14 @@ class LabLogAnalyzer:
             frame_height=int(h),
         )
 
-    def analyze_frame(self, frame: np.ndarray, timestamp: str) -> AnalysisResult:
-        detections = self.detect_objects(frame)
+    def analyze_frame(
+        self,
+        frame: np.ndarray,
+        timestamp: str,
+        custom_classes: list[str] | None = None,
+        allowed_classes: list[str] | None = None,
+    ) -> AnalysisResult:
+        detections = self.detect_objects(frame, custom_classes, allowed_classes)
         ocr_text, ocr_conf, _seg7 = self.detect_text_in_regions(frame, detections)
         # 실시간 단일 프레임에서는 STT를 돌리지 않는다 (스트리밍 STT는 /ws/transcribe가 담당)
         return self._build_result(frame, timestamp, detections, ocr_text, ocr_conf, speech="")
@@ -249,6 +288,8 @@ class LabLogAnalyzer:
         path: str,
         sample_fps: float = 1.0,
         ocr_period_seconds: float = 3.0,
+        custom_classes: list[str] | None = None,
+        allowed_classes: list[str] | None = None,
     ) -> list[AnalysisResult]:
         """변화 감지 기반 멀티모달 영상 분석 (STT/비디오 병렬 처리).
 
@@ -308,10 +349,17 @@ class LabLogAnalyzer:
                         idx += 1
                         continue
 
-                    raw_detections = self.detect_objects(frame)
+                    raw_detections = self.detect_objects(frame, custom_classes, allowed_classes)
                     # 시간적 일관성 필터 — 최근 윈도우에서 PERSISTENCE_MIN_VOTES번 이상 보이고
                     # 동시에 현재 프레임에 존재하는 라벨만 인정 (반짝 객체는 잡음으로 제거).
+                    # 단, confidence가 PERSISTENCE_HIGH_CONF_BYPASS 이상인 라벨은 등장 횟수와
+                    # 무관하게 즉시 확정.
                     raw_labels = {d.label for d in raw_detections}
+                    high_conf_labels = {
+                        d.label
+                        for d in raw_detections
+                        if d.confidence >= PERSISTENCE_HIGH_CONF_BYPASS
+                    }
                     recent_label_sets.append(raw_labels)
                     label_counts: Counter[str] = Counter()
                     for prev_set in recent_label_sets:
@@ -319,7 +367,8 @@ class LabLogAnalyzer:
                     confirmed_labels = {
                         lbl
                         for lbl, cnt in label_counts.items()
-                        if cnt >= PERSISTENCE_MIN_VOTES and lbl in raw_labels
+                        if lbl in raw_labels
+                        and (cnt >= PERSISTENCE_MIN_VOTES or lbl in high_conf_labels)
                     }
                     detections = [d for d in raw_detections if d.label in confirmed_labels]
 

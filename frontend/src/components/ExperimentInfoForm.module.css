@@ -80,6 +80,67 @@
   box-shadow: 0 0 0 3px rgba(142, 148, 193, 0.18);
 }
 
+.classHint {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  color: #5a5f7a;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.chip {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #d5d7e3;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #5a5f7a;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.chip:hover {
+  border-color: var(--lab-lavender, #8e94c1);
+}
+
+.chipActive {
+  background: var(--lab-lavender, #8e94c1);
+  border-color: var(--lab-lavender, #8e94c1);
+  color: #ffffff;
+}
+
+.customAddRow {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.customAddRow .input {
+  flex: 1;
+}
+
+.addBtn {
+  flex-shrink: 0;
+  padding: 0 0.9rem;
+  border: 1px solid var(--lab-lavender, #8e94c1);
+  border-radius: 0.55rem;
+  background: #ffffff;
+  color: var(--lab-navy, #2c3553);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.addBtn:hover {
+  background: var(--lab-lavender, #8e94c1);
+  color: #ffffff;
+}
+
 .clearRow {
   margin-top: 0.5rem;
   display: flex;

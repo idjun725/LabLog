@@ -25,6 +25,10 @@ gcp-credentials.json
 
 # YOLOv8 base model — ultralytics가 필요 시 자동으로 다시 다운로드
 yolov8n.pt
+# YOLO-World 사전학습 가중치 + CLIP 텍스트 인코더 캐시 — 필요 시 자동 재다운로드
+# (테스트 중 CWD에 떨어진 것들, 수백MB — 커밋 대상 아님)
+yolov8*-world*.pt
+weights/
 # train_main_yolo.py가 만드는 이전 best.pt 백업본 — 리포지토리에 담을 필요 없음
 best.backup_*.pt
 

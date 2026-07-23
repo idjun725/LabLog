@@ -3,10 +3,14 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/AppShell'
 import { PageHeader } from '../components/PageHeader'
 import lablogMark from '../assets/lablog-mark.png'
-import { readPendingExperimentInfo, uploadAndAnalyze } from '../api/lablog'
+import { experimentInfoHasAny, readPendingExperimentInfo, uploadAndAnalyze } from '../api/lablog'
 import styles from './LoadingPage.module.css'
 
-type LocationState = { phase?: 'upload' | 'analyze'; file?: File }
+type LocationState = {
+  phase?: 'upload' | 'analyze'
+  file?: File
+  source?: 'upload' | 'record'  // RecordPage가 녹화 후 이 페이지로 넘어올 때 'record'
+}
 
 const R = 90
 const CIRC = 2 * Math.PI * R
@@ -17,6 +21,7 @@ export function LoadingPage() {
   const state = (location.state ?? null) as LocationState | null
   const file = state?.file
   const phase = state?.phase ?? 'analyze'
+  const source = state?.source ?? 'upload'
 
   const [progress, setProgress] = useState(0)
 
@@ -39,11 +44,12 @@ export function LoadingPage() {
 
     // 사용자가 UploadPage에서 입력한 기본 정보(있으면)를 함께 첨부 — pending draft에 저장됨
     const pendingInfo = readPendingExperimentInfo()
-    const hasInfo = Object.values(pendingInfo).some((v) => v && v.trim())
+    const hasInfo = experimentInfoHasAny(pendingInfo)
 
     uploadAndAnalyze(file, {
       sampleFps: 1,
       info: hasInfo ? pendingInfo : undefined,
+      source,
       onProgress: (pct) => setProgress(pct),
       onUploadComplete: () => {
         setProgress(100)
@@ -52,10 +58,10 @@ export function LoadingPage() {
       onUploadError: (err) => {
         console.error('업로드 실패:', err)
         window.alert(`업로드 중 오류가 발생했습니다.\n${err}`)
-        navigate('/upload', { replace: true })
+        navigate(source === 'record' ? '/record' : '/upload', { replace: true })
       },
     })
-  }, [file, navigate])
+  }, [file, navigate, source])
 
   const offset = CIRC - (Math.min(progress, 100) / 100) * CIRC
 

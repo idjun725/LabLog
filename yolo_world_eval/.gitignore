@@ -1,0 +1,7 @@
+data/
+results/
+# ultralytics가 필요 시 자동으로 다시 다운로드하는 사전학습 가중치
+*.pt
+# 임시 모니터링용 로그 (수동으로 만든 것, 스크립트 산출물 아님)
+results_stdout.log
+results_stderr.log

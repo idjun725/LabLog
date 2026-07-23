@@ -84,6 +84,31 @@ export type ExperimentInfo = {
   date?: string        // YYYY-MM-DD (HTML <input type=date> 그대로)
   hypothesis?: string
   other?: string
+  // best.pt 25개 클래스 밖 사물을 잡기 위한 YOLO-World 프롬프트 목록 (UploadPage 전용).
+  // 직접 추가한 항목은 한글일 수 있음 — /api/analyze/video에서 백엔드가
+  // 번역(class_translator.py) 후 사용.
+  customClasses?: string[]
+  // best.pt 25개 클래스 중 이 목록에 있는 것만 탐지하도록 제한 (영문 클래스명,
+  // vectorizer.YOLO_VOCAB과 동일한 값). 비어있으면 25개 전부 탐지(기존 동작 그대로).
+  allowedClasses?: string[]
+}
+
+// ExperimentInfo의 배열 필드들 — 문자열 필드와 달리 .trim()이 없어 별도 처리 필요.
+const ARRAY_FIELDS = ['customClasses', 'allowedClasses'] as const
+
+// info의 문자열 필드·배열 필드 중 하나라도 값이 있는지 확인.
+export function experimentInfoHasAny(info: ExperimentInfo): boolean {
+  const hasString = Object.entries(info).some(
+    ([k, v]) =>
+      !(ARRAY_FIELDS as readonly string[]).includes(k) &&
+      typeof v === 'string' &&
+      v.trim(),
+  )
+  const hasArray = ARRAY_FIELDS.some((k) => {
+    const v = info[k]
+    return Array.isArray(v) && v.length > 0
+  })
+  return hasString || hasArray
 }
 
 export type Draft = {
@@ -116,8 +141,13 @@ export function readPendingExperimentInfo(): ExperimentInfo {
 export function writePendingExperimentInfo(info: ExperimentInfo): void {
   // 빈 문자열·undefined만 있으면 키 제거 — 깨끗한 상태 유지
   const cleaned: ExperimentInfo = {}
-  for (const [k, v] of Object.entries(info) as Array<[keyof ExperimentInfo, string | undefined]>) {
-    if (v && v.trim()) cleaned[k] = v.trim()
+  for (const [k, v] of Object.entries(info)) {
+    const key = k as keyof ExperimentInfo
+    if ((ARRAY_FIELDS as readonly string[]).includes(k)) {
+      if (Array.isArray(v) && v.length > 0) cleaned[key] = v as never
+    } else if (typeof v === 'string' && v.trim()) {
+      cleaned[key] = v.trim() as never
+    }
   }
   if (Object.keys(cleaned).length === 0) {
     localStorage.removeItem(EXPERIMENT_INFO_KEY)
@@ -211,8 +241,7 @@ export function updateDraftTitle(id: string, newTitle: string): void {
 
 export function updateDraftInfo(id: string, info: ExperimentInfo): void {
   // 빈 항목만 있으면 info 자체를 제거 (보고서 API에 빈 객체 안 보내도록)
-  const hasAny = Object.values(info).some((v) => v && v.trim())
-  updateDraft(id, { info: hasAny ? info : undefined })
+  updateDraft(id, { info: experimentInfoHasAny(info) ? info : undefined })
 }
 
 export function updateDraftRecord(
@@ -251,8 +280,7 @@ export async function generateReport(draftId: string): Promise<GeneratedReport> 
   if (!draft.data) throw new Error('분석이 아직 완료되지 않았습니다.')
 
   // info에 한 항목이라도 있을 때만 전송 (백엔드는 None/빈 dict 모두 graceful 처리)
-  const infoHasAny =
-    draft.info && Object.values(draft.info).some((v) => v && v.trim())
+  const infoHasAny = draft.info && experimentInfoHasAny(draft.info)
   const res = await fetch(`${API_BASE}/api/report/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -417,12 +445,13 @@ export function uploadAndAnalyze(
   options: {
     sampleFps?: number
     info?: ExperimentInfo  // pending draft에 함께 저장돼 보고서 생성 시 사용됨
+    source?: 'upload' | 'record'  // RecordPage가 녹화본을 같은 경로로 보낼 때 'record'
     onProgress?: (pct: number) => void
     onUploadComplete?: (draftId: string) => void
     onUploadError?: (error: string) => void
   } = {},
 ): void {
-  const { sampleFps = 1, info, onProgress, onUploadComplete, onUploadError } = options
+  const { sampleFps = 1, info, source = 'upload', onProgress, onUploadComplete, onUploadError } = options
 
   const draftId = crypto.randomUUID()
   let draftCreated = false
@@ -448,7 +477,7 @@ export function uploadAndAnalyze(
     drafts.unshift({
       id: draftId,
       createdAt: Date.now(),
-      source: 'upload',
+      source,
       title,
       status: 'pending',
       data: null,
@@ -498,5 +527,12 @@ export function uploadAndAnalyze(
 
   const form = new FormData()
   form.append('file', file)
+  if (info?.customClasses?.length) {
+    // 백엔드는 쉼표구분 문자열로 받음 (analyze_video의 custom_classes Form 필드)
+    form.append('custom_classes', info.customClasses.join(','))
+  }
+  if (info?.allowedClasses?.length) {
+    form.append('allowed_classes', info.allowedClasses.join(','))
+  }
   xhr.send(form)
 }

@@ -38,7 +38,7 @@ export function UploadPage() {
         MP4, MOV, AVI, WebM · 최대 2GB (MVP 기준)
       </p>
 
-      <ExperimentInfoForm />
+      <ExperimentInfoForm showClassSelector />
 
       <label
         className={`${styles.dropzone} ${isDragging ? styles.dropzoneActive : ''}`}

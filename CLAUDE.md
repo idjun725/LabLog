@@ -102,6 +102,8 @@ $env:GROQ_API_KEY = [Environment]::GetEnvironmentVariable('GROQ_API_KEY', 'User'
 | POST | `/api/tts` | text → mp3 (Edge TTS); 503 if `edge-tts` not installed |
 | WS   | `/ws/analyze` | binary JPEG frames → JSON AnalysisRecord per frame (+ `assist?: string[]`) |
 | WS   | `/ws/transcribe` | binary WebM/Opus chunks → JSON `TranscribeChunkMessage` per chunk (realtime STT) |
+| GET  | `/` | HF Spaces root health probe |
+| GET  | `/robots.txt` | static robots response |
 
 CORS allows `localhost`/`127.0.0.1` on any port via regex (dev convenience).
 
@@ -111,7 +113,7 @@ CORS allows `localhost`/`127.0.0.1` on any port via regex (dev convenience).
 ### Backend module boundaries (intentionally flat — no package)
 
 - **`analyzer.py`** — `AnalysisResult` dataclass is the canonical record schema (its fields appear unchanged in WS/HTTP JSON). `analyze_video()` runs STT in a `ThreadPoolExecutor` parallel to the frame loop and merges segments by timestamp afterwards. Implements:
-  - **YOLO temporal-consistency filter**: `PERSISTENCE_WINDOW=4` / `PERSISTENCE_MIN_VOTES=2`. A label must appear in ≥2 of last 4 samples **and** be present in the current frame to count.
+  - **YOLO temporal-consistency filter**: `PERSISTENCE_WINDOW=4` / `PERSISTENCE_MIN_VOTES=2`. A label must appear in ≥2 of last 4 samples **and** be present in the current frame to count — except a label with confidence ≥ `PERSISTENCE_HIGH_CONF_BYPASS=0.5` is confirmed immediately regardless of vote count.
   - **OCR temporal-consistency filter**: same `PERSISTENCE_WINDOW`/`MIN_VOTES` as YOLO, over a `recent_ocr_texts` deque of joined OCR strings; text must repeat ≥2 times before a record is saved on `ocr_changed`.
   - **`detect_text_in_regions(frame, detections)`** — the production OCR pipeline. Runs **two models with explicit roles**:
     1. **7-segment YOLO on the FULL frame** (single call, fast) via `seven_segment_classifier.detect_digits()`. Catches digital displays regardless of whether the device is in `best.pt` vocab.
@@ -146,6 +148,7 @@ CORS allows `localhost`/`127.0.0.1` on any port via regex (dev convenience).
 |---|---|---|
 | `analyzer.py` | `OCR_MIN_CONFIDENCE` (0.5), `OCR_MIN_LENGTH` (2), `OCR_MIN_DIGIT_RATIO` (0.25), `NUMERIC_PATTERN` | OCR noise filter — raise to be more aggressive |
 | `analyzer.py` | `PERSISTENCE_WINDOW` (4), `PERSISTENCE_MIN_VOTES` (2) | YOLO **and** OCR temporal-consistency (same constants) — raise to filter more flicker |
+| `analyzer.py` | `PERSISTENCE_HIGH_CONF_BYPASS` (0.5) | YOLO-only — confidence at/above this skips the vote-count requirement entirely (single-frame confirm) |
 | `analyzer.py` | `get_assist_messages()` thresholds | YOLO 0.4, OCR 0.65, brightness 40 |
 | `analyzer.py` | `DEFAULT_YOLO_WEIGHTS` (`"best.pt"`) | Main YOLO weights file. Drop in `yolov8n.pt` for COCO classes, or a new `best.pt` after re-fine-tuning. API contract unchanged. |
 | `seven_segment_classifier.py` | `DEFAULT_CONF_THRESHOLD` (0.25) | **Sole gate for 7-seg** — `_filter_ocr_raw` and the OCR temporal filter both skip the 7-seg path, so this single threshold decides what's accepted. Deliberately low (aggressive recall) so single-digit / fast-changing displays survive; raise to 0.35–0.4 if false positives surface. |
@@ -166,7 +169,7 @@ CORS allows `localhost`/`127.0.0.1` on any port via regex (dev convenience).
 
 ### Frontend integration patterns
 
-- **`src/api/lablog.ts` is the single integration point.** All other files import types and helpers from here; no other file does `fetch`.
+- **`src/api/lablog.ts` is the single HTTP integration point.** All other files import types and helpers from here; no other file does `fetch`. **Exception**: `RecordPage.tsx` opens its two `/ws/analyze` and `/ws/transcribe` connections directly via `new WebSocket(...)` (only importing the `WS_BASE` constant from `lablog.ts`) — it bypasses the module for WebSocket I/O specifically.
 - **Background analysis pattern**: `uploadAndAnalyze()` is fire-and-forget — creates a `pending` draft when XHR bytes finish uploading, lets server processing continue detached from React lifecycle, updates draft via `xhr.onload`. AnalysisDetailPage polls every 2s while `status === 'pending'` or `audio_pending === true`.
 - **Drafts vs Archive split is by report presence, not by source**:
   - `DraftsPage` (`/drafts`) → `listDrafts().filter((d) => !d.report)` (보고서 미생성)
@@ -187,6 +190,8 @@ CORS allows `localhost`/`127.0.0.1` on any port via regex (dev convenience).
   - `lablog:preferredCameraId` — RecordPage's last-used camera deviceId
   - `lablog:experimentInfo` — pending ExperimentInfo form values (form-side only; cleared when copied into a draft)
   - `lablog:titleSequenceByDay` — `{ "YYMMDD": N }` map for `generateDraftTitle`
+  - `lablog:ttsEnabled` — RecordPage TTS on/off toggle
+  - `lablog:seen-drafts` — string[] of draft IDs already viewed (drives "new" badge state)
 - **RecordPage flow** (the most complex page):
   - Two parallel WebSockets: `/ws/analyze` (JPEG frames @ `SEND_INTERVAL_MS`) and `/ws/transcribe` (6s WebM/Opus chunks from a separate MediaRecorder restarted every chunk).
   - **Pause/resume** (not on/off): uses MediaRecorder native `pause()` for batch recorder, full stop+restart for the realtime STT cycle. `pausedRef` guards against stale callbacks.
@@ -233,6 +238,8 @@ The RecordPage flow is analogous but kicks off audio transcription separately (`
 - **VS Code Python interpreter**: IDE may complain "package not installed" against the wrong interpreter. Select via `Ctrl+Shift+P` → "Python: Select Interpreter" → `.venv\Scripts\python.exe`.
 - **Persistent env vars not visible in existing PowerShell windows**: must open a new window OR pull manually via `$env:X = [Environment]::GetEnvironmentVariable('X', 'User')`.
 - **Korean LF/CRLF warnings on Windows git**: harmless; ignore.
+- **`backend/README.md` is stale** — it still documents a removed `camera_prototype.py` demo entry point, describes YOLO as unfine-tuned COCO 80-class, and says "STT / GRU / Claude API: 이번 범위 밖" (out of scope). All of that has since shipped. Don't trust it over this file or the actual source; it needs a rewrite but hasn't been prioritized.
+- **No automated tests exist** (no pytest files, no `*.test.ts`/`*.spec.ts`, no vitest/jest config) anywhere in the repo. Verification is manual (`npm run build`/`lint`, manual backend smoke-testing via `/docs`, `evaluate_gru.py` for the ML pipeline).
 
 ## Operating constraints
 

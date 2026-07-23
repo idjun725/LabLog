@@ -44,6 +44,7 @@ from analyzer import (
     get_assist_messages,
     parse_timestamp,
 )
+from class_translator import translate_classes
 from gru_classifier import classify_records
 from report_generator import generate_report
 from stt import (
@@ -111,8 +112,27 @@ def health():
 async def analyze_video(
     file: UploadFile = File(...),
     sample_fps: float = Query(1.0, gt=0, le=10, description="초당 분석 프레임 수"),
+    custom_classes: str = Form(
+        "",
+        description="쉼표로 구분한 개방 어휘(YOLO-World) 탐지 대상 클래스 — best.pt 25개 "
+        "클래스 밖 사물을 프롬프트로 추가 탐지. 비어 있으면 best.pt만 사용.",
+    ),
+    allowed_classes: str = Form(
+        "",
+        description="쉼표로 구분한 best.pt 25개 클래스 중 허용 목록(영문 클래스명, "
+        "vectorizer.YOLO_VOCAB과 동일). 비어 있으면 25개 전부 탐지 — 지정하면 "
+        "그 클래스들로만 탐지를 제한(다른 24개와의 오분류 방지).",
+    ),
 ):
     analyzer = _require_analyzer()
+
+    classes = [c.strip() for c in custom_classes.split(",") if c.strip()]
+    if classes:
+        # YOLO-World 텍스트 인코더는 영어 전용 — 한글 클래스명은 여기서 미리 번역
+        # (프레임 루프 안에서 매번 부르면 안 되므로 요청당 1회, 루프 진입 전에 처리)
+        classes = await asyncio.to_thread(translate_classes, classes)
+
+    restrict_to = [c.strip() for c in allowed_classes.split(",") if c.strip()]
 
     suffix = Path(file.filename or "upload.mp4").suffix or ".mp4"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
@@ -120,7 +140,9 @@ async def analyze_video(
         tmp.write(body)
         tmp_path = tmp.name
     print(
-        f"[server] 업로드 수신: {file.filename} ({len(body)/1024/1024:.1f}MB) → {tmp_path}",
+        f"[server] 업로드 수신: {file.filename} ({len(body)/1024/1024:.1f}MB) → {tmp_path}"
+        + (f", custom_classes={classes}" if classes else "")
+        + (f", allowed_classes={restrict_to}" if restrict_to else ""),
         flush=True,
     )
 
@@ -128,7 +150,11 @@ async def analyze_video(
     try:
         # 영상 분석은 CPU 바운드라 이벤트 루프를 막지 않도록 스레드로 분리
         results = await asyncio.to_thread(
-            analyzer.analyze_video, tmp_path, sample_fps
+            analyzer.analyze_video,
+            tmp_path,
+            sample_fps,
+            custom_classes=classes,
+            allowed_classes=restrict_to,
         )
         print(
             f"[server] 분석 응답 전송 — records {len(results)}개, "
