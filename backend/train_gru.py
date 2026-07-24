@@ -30,7 +30,6 @@ PAD_LABEL = -100  # CrossEntropyLoss ignore_index
 
 class StageDataset(Dataset):
     def __init__(self, items: list[dict]):
-        self.items = items
         self.phase_to_idx = {p: i for i, p in enumerate(PHASES)}
         # 검증
         for item in items:
@@ -45,16 +44,24 @@ class StageDataset(Dataset):
                         f"미지의 라벨 '{label}' — 허용: {PHASES}"
                     )
 
+        # vectorize_records()(SBERT 포함)를 여기서 한 번만 실행해 캐싱 — __getitem__마다
+        # 다시 계산하면 epoch마다 같은 텍스트를 SBERT로 재인코딩하게 되어 (200 epoch ×
+        # 실험 수) 배로 느려진다. 입력이 학습 중 바뀌지 않으므로 미리 계산해도 결과는 동일.
+        print(f"[train] SBERT 벡터화 사전 계산 중 (실험 {len(items)}개, 1회만)...")
+        self._cache: list[tuple[torch.Tensor, torch.Tensor]] = []
+        for item in items:
+            x = vectorize_records(item["records"])  # (T, D)
+            y = np.array(
+                [self.phase_to_idx[label] for label in item["labels"]], dtype=np.int64
+            )  # (T,)
+            self._cache.append((torch.from_numpy(x), torch.from_numpy(y)))
+        print("[train] 벡터화 완료")
+
     def __len__(self) -> int:
-        return len(self.items)
+        return len(self._cache)
 
     def __getitem__(self, i: int):
-        item = self.items[i]
-        x = vectorize_records(item["records"])  # (T, D)
-        y = np.array(
-            [self.phase_to_idx[label] for label in item["labels"]], dtype=np.int64
-        )  # (T,)
-        return torch.from_numpy(x), torch.from_numpy(y)
+        return self._cache[i]
 
 
 def collate(batch):

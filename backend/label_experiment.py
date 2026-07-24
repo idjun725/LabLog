@@ -5,10 +5,22 @@
                                                                 [--sample-fps 1.0]
                                                                 [--dry-run]
 
+  # 시간대(초 단위 타임스탬프) 기반 라벨을 미리 알고 있으면 대화식 입력 없이 바로 저장:
+  .\\.venv\\Scripts\\python.exe label_experiment.py <video_path> --phases phases.json
+
+  phases.json 형식 (start/end는 "HH:MM:SS", phase는 1~4):
+    [
+      {"start": "00:00:00", "end": "00:00:45", "phase": 1},
+      {"start": "00:00:45", "end": "00:02:30", "phase": 2}
+    ]
+  뒤에 나온 구간이 겹치는 시간대를 덮어씀 (대화식 입력과 동일 규칙). 어느 구간에도
+  안 걸리는 record가 하나라도 있으면 에러로 중단 — 임의로 phase를 추정하지 않음.
+
 Flow:
   1) analyze_video()로 영상에서 records 추출 (배치 STT 포함, 몇 분 소요)
   2) records를 표로 출력
-  3) "구간: phase" 형식으로 대화식 입력 (예: "1-5: 1")
+  3) --phases 미지정 시 "구간: phase" 형식으로 대화식 입력 (예: "1-5: 1")
+     --phases 지정 시 timestamp를 기준으로 자동 매핑 (확인 프롬프트 없이 바로 저장)
   4) 모든 record가 라벨링됐는지 검증
   5) training_data.json 백업 후 새 실험 항목을 append
 
@@ -35,7 +47,7 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
-from analyzer import LabLogAnalyzer
+from analyzer import LabLogAnalyzer, parse_timestamp
 from gru_model import PHASES
 
 TRAINING_DATA_PATH = Path(__file__).parent / "training_data.json"
@@ -138,6 +150,46 @@ def _collect_labels_interactively(n_records: int) -> list[str]:
         print("이 record들에도 phase를 배정해 주세요.\n")
 
 
+def _collect_labels_from_phases_file(records: list[dict], phases_path: Path) -> list[str]:
+    """phases.json(시간 구간 목록)을 읽어 각 record의 timestamp로 phase를 자동 배정.
+
+    대화식 입력과 동일한 규칙: 뒤에 나온 구간이 겹치는 시간대를 덮어쓴다.
+    어느 구간에도 걸리지 않는 record가 있으면 ValueError — 임의로 추정하지 않는다.
+    """
+    with phases_path.open("r", encoding="utf-8") as f:
+        ranges = json.load(f)
+
+    parsed_ranges: list[tuple[float, float, str]] = []
+    for i, r in enumerate(ranges):
+        try:
+            start = parse_timestamp(r["start"])
+            end = parse_timestamp(r["end"])
+            code = int(r["phase"])
+        except (KeyError, TypeError, ValueError) as e:
+            raise ValueError(f"phases.json {i}번째 항목이 올바르지 않습니다: {r} ({e})")
+        if code not in PHASE_MENU:
+            raise ValueError(f"phases.json {i}번째 항목의 phase는 {list(PHASE_MENU.keys())} 중 하나여야 합니다: {r}")
+        if start > end:
+            raise ValueError(f"phases.json {i}번째 항목의 start가 end보다 뒤입니다: {r}")
+        parsed_ranges.append((start, end, PHASE_MENU[code]))
+
+    labels: list[str | None] = [None] * len(records)
+    for i, rec in enumerate(records):
+        t = parse_timestamp(rec.get("timestamp", ""))
+        for start, end, phase_name in parsed_ranges:  # 뒤 항목이 덮어씀 → 순서대로 순회
+            if start <= t <= end:
+                labels[i] = phase_name
+
+    missing = [i + 1 for i, l in enumerate(labels) if l is None]
+    if missing:
+        raise ValueError(
+            f"phases.json의 구간에 걸리지 않는 record가 {len(missing)}개 있습니다: "
+            f"{missing[:20]}{' ...' if len(missing) > 20 else ''}\n"
+            "phases.json의 시간 구간이 영상 전체(첫 record ~ 마지막 record)를 덮는지 확인하세요."
+        )
+    return [l for l in labels if l is not None]  # type: ignore[misc]
+
+
 def _print_summary(records: list[dict], labels: list[str], title: str) -> None:
     from collections import Counter
     counts = Counter(labels)
@@ -183,6 +235,9 @@ def main() -> int:
                         help="초당 프레임 샘플링 (기본 1.0 = production과 동일).")
     parser.add_argument("--dry-run", action="store_true",
                         help="분석·라벨링만 수행하고 파일에 저장하지 않음.")
+    parser.add_argument("--phases", type=Path, default=None,
+                        help="시간 구간 기반 phase 라벨 JSON 파일 경로. 지정하면 대화식 "
+                        "입력 없이 자동 라벨링 후 확인 없이 바로 저장 (--dry-run과 병행 가능).")
     args = parser.parse_args()
 
     if not args.video_path.exists():
@@ -206,10 +261,20 @@ def main() -> int:
 
     records = [_to_training_record(asdict(r)) for r in results]
     _print_records_table(records)
-    _print_phase_menu()
 
-    print("각 record 번호를 훑어보고 구간별로 phase를 배정하세요.\n")
-    labels = _collect_labels_interactively(len(records))
+    if args.phases:
+        if not args.phases.exists():
+            print(f"[label] phases 파일 없음: {args.phases}", file=sys.stderr)
+            return 1
+        try:
+            labels = _collect_labels_from_phases_file(records, args.phases)
+        except ValueError as e:
+            print(f"[label] phases 파일 오류: {e}", file=sys.stderr)
+            return 3
+    else:
+        _print_phase_menu()
+        print("각 record 번호를 훑어보고 구간별로 phase를 배정하세요.\n")
+        labels = _collect_labels_interactively(len(records))
 
     _print_summary(records, labels, title)
 
@@ -217,10 +282,13 @@ def main() -> int:
         print("[label] --dry-run 지정 — training_data.json에 저장하지 않고 종료.")
         return 0
 
-    answer = input("이대로 training_data.json에 append 하시겠습니까? (y/N): ").strip().lower()
-    if answer != "y":
-        print("[label] 저장 취소.")
-        return 0
+    if not args.phases:
+        # --phases 지정 시엔 이미 파일로 명시된 라벨이라 재확인 없이 바로 저장
+        # (비대화식 실행 — 확인 프롬프트가 있으면 멈춰버림).
+        answer = input("이대로 training_data.json에 append 하시겠습니까? (y/N): ").strip().lower()
+        if answer != "y":
+            print("[label] 저장 취소.")
+            return 0
 
     new_item = {"experiment": title, "records": records, "labels": labels}
     backup = _backup_and_append(new_item)

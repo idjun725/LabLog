@@ -16,6 +16,8 @@ yolov8n.pt
 yolov8*-world*.pt
 # train_main_yolo.py가 만드는 이전 best.pt 백업본
 best.backup_*.pt
+# label_experiment.py가 저장 직전마다 만드는 training_data.json 백업본
+training_data.backup_*.json
 
 # YOLO 학습 산출물
 Chemistry-Lab-Object-Detection-1/
